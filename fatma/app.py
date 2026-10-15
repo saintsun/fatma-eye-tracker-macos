@@ -44,8 +44,31 @@ from .panel import Panel, PanelBridge
 from .pointer import create_pointer, screen_size
 from .quality import JitterMeter
 
-PREVIEW_WINDOW = f"{LONG_NAME}  [q]uit [c]alibrate [m]ouse [s]moothing [a]nchor"
+# macOS will not shrink a window below the width of its title bar text, so
+# a long title silently sets a floor on the preview size. The key list it
+# used to carry is in the overlay and in the panel.
+PREVIEW_WINDOW = "Fatma"
 TARGET_WINDOW = "Fatma calibration target"
+
+#: OpenCV's Hershey fonts are ASCII-only: cv2.putText draws "?" for every
+#: other code point, so "sabit bakış" reaches the screen as "sabit bak????".
+#: The overlay is a terse debug readout and the panel carries the real
+#: Turkish text, so the drawing layer transliterates rather than taking on a
+#: font-rendering dependency. Applying it at the one place that draws means
+#: text added later cannot quietly break either.
+_ASCII_FOLD = str.maketrans({
+    "ı": "i", "İ": "I", "ş": "s", "Ş": "S", "ğ": "g", "Ğ": "G",
+    "ü": "u", "Ü": "U", "ö": "o", "Ö": "O", "ç": "c", "Ç": "C",
+    "â": "a", "î": "i", "û": "u", "—": "-", "–": "-", "’": "'",
+    "“": '"', "”": '"', "…": "...", "·": "-", "×": "x",
+})
+
+
+def ascii_fold(text: str) -> str:
+    """Make a string safe for cv2.putText, which cannot draw non-ASCII."""
+    folded = text.translate(_ASCII_FOLD)
+    return folded.encode("ascii", "replace").decode("ascii")
+
 
 GREEN = (0, 255, 0)
 BLUE = (255, 0, 0)
@@ -88,11 +111,11 @@ def make_target_image(
 
     if total:
         banner = f"{step}/{total}"
-        cv2.putText(img, banner, (40, 70), cv2.FONT_HERSHEY_SIMPLEX,
+        cv2.putText(img, ascii_fold(banner), (40, 70), cv2.FONT_HERSHEY_SIMPLEX,
                     1.6, WHITE, 3)
         hint = "Halkaya bak, sonra SPACE'e bas    (ESC = iptal)"
         size, _ = cv2.getTextSize(hint, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
-        cv2.putText(img, hint,
+        cv2.putText(img, ascii_fold(hint),
                     ((screen_w - size[0]) // 2, canvas_h - 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, WHITE, 2)
         # A moving dot per completed point gives the user proof the window
@@ -163,6 +186,7 @@ class TrackerApp:
             if settings.panel_enabled else None
         self._quit = False
         self._face_seen = False
+        self._preview_sized = False
         self.cam_w, self.cam_h = settings.cam_width, settings.cam_height
 
     # --- setup ---------------------------------------------------------
@@ -218,6 +242,29 @@ class TrackerApp:
             40,
         )
         self.preview_visible = True
+        self._preview_sized = False
+
+    def _preview_frame(self, frame):
+        """Scale a capture frame down to the preview's own size.
+
+        The window is sized by the image, not by ``resizeWindow``, so
+        showing the capture frame directly makes the preview as large as the
+        capture resolution — which is how raising capture to 720p turned a
+        small corner window into one covering half the screen.
+
+        Drawing the overlay on the scaled copy also keeps the text legible:
+        the font size is fixed in pixels, so on a 1280-wide frame it would
+        be half as large relative to the window.
+        """
+        import cv2
+
+        height, width = frame.shape[:2]
+        target = self.s.preview_width
+        if width <= target:
+            return frame.copy()
+        scale = target / width
+        return cv2.resize(frame, (target, max(1, round(height * scale))),
+                          interpolation=cv2.INTER_AREA)
 
     def _hide_preview_window(self) -> None:
         import cv2
@@ -294,7 +341,8 @@ class TrackerApp:
         ]
         for i, line in enumerate(lines):
             y = h - 10 - 20 * (len(lines) - 1 - i)
-            cv2.putText(frame, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX,
+            cv2.putText(frame, ascii_fold(line), (10, y),
+                        cv2.FONT_HERSHEY_SIMPLEX,
                         0.5, WHITE, 1)
 
     @staticmethod
@@ -558,10 +606,17 @@ class TrackerApp:
                     self._update_calibration_window()
 
                     if self.preview_visible:
+                        shown = self._preview_frame(frame)
                         self._draw_overlay(
-                            frame, landmarks, ear_l, ear_r, brow, self.fps
+                            shown, landmarks, ear_l, ear_r, brow, self.fps
                         )
-                        cv2.imshow(PREVIEW_WINDOW, frame)
+                        cv2.imshow(PREVIEW_WINDOW, shown)
+                        if not self._preview_sized:
+                            # resizeWindow before the first imshow does not
+                            # stick; re-assert once the window exists.
+                            cv2.resizeWindow(PREVIEW_WINDOW, shown.shape[1],
+                                             shown.shape[0])
+                            self._preview_sized = True
                     if timer:
                         timer.add("draw", time.perf_counter() - t_stage)
 

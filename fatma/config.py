@@ -105,8 +105,10 @@ class Settings:
 
     # --- ui ------------------------------------------------------------
     show_preview: bool = True
-    preview_width: int = 480
-    preview_height: int = 320
+    #: The preview frame is scaled to this width before the overlay is
+    #: drawn, which is what actually determines the window size.
+    preview_width: int = 640
+    preview_height: int = 360
     #: macOS keeps the menu bar on top of "fullscreen" OpenCV windows, so
     #: the canvas origin sits this many pixels below screen y=0.
     macos_menu_bar_h: int = 25

@@ -35,6 +35,26 @@ class CalibrationError(Exception):
     """Raised when a calibration cannot be fitted or loaded."""
 
 
+def _quality_from_payload(payload) -> CalibrationQuality | None:
+    """Rebuild the accuracy figures stored alongside a saved calibration.
+
+    Per-point errors are not written to the file, so the restored report
+    carries the summary only; ``per_point`` stays empty and callers that
+    want to name the worst target have to re-calibrate.
+    """
+    if not isinstance(payload, dict):
+        return None
+    try:
+        mean = float(payload["mean"])
+        worst = float(payload["worst"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (mean >= 0 and worst >= mean):
+        return None
+    return CalibrationQuality(per_point=(), mean=mean, worst=worst,
+                              worst_index=-1)
+
+
 class Calibrator:
     """Collects calibration samples and maps gaze to normalised screen space.
 
@@ -316,6 +336,11 @@ class Calibrator:
         self.nx_min, self.nx_max = nx_min, nx_max
         self.ny_min, self.ny_max = ny_min, ny_max
         self.fit_error = None
+        # Cross-validation needs the original control points, which are not
+        # in the file — only the fitted mapping is. Restoring the figures
+        # recorded at fit time means a user who restarts still sees how good
+        # their calibration was, instead of an unhelpful "calibrated: yes".
+        self.quality = _quality_from_payload(data.get("quality"))
 
     def load(self, path: str) -> bool:
         """Load a calibration from ``path``.
