@@ -379,7 +379,7 @@ fit.
 .venv/bin/python -m pytest
 ```
 
-347 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
+366 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
 the I/O that needs a camera and a real mouse.
 
 ```bash
@@ -393,6 +393,26 @@ asserted against an exact number rather than a tolerance.
 `tests/test_precision.py` injects simulated landmark noise and measures the
 spread of the signal, which is how the √2 binocular gain and the six-landmark
 reference are established without a camera.
+
+### Sit close to the screen
+
+The one thing that governs accuracy more than any setting, and it is not in
+the software: **how far you sit from the screen.** Further away, the screen
+subtends a smaller visual angle, your eyes rotate less to cover it, and the
+whole gaze signal shrinks into the noise.
+
+Two sessions measured on the same machine:
+
+| | horizontal | vertical | vertical amplification |
+|---|---|---|---|
+| sitting close | 0.401 | 0.200 | 4 791 px per unit |
+| sitting back | 0.175 | 0.079 | 12 095 px per unit |
+
+The second calibration passed through every control point exactly and still
+put the cursor 208 px from the target on average, because a third of a pixel
+of landmark noise had become a hundred pixels of cursor. Residuals cannot see
+this at all — the span can, so it is measured and reported after every
+calibration, with a warning when it is too small.
 
 ### Known limits
 

@@ -30,6 +30,63 @@ import numpy as np
 from .tps import TPSFitError, TPSMapping
 
 
+#: Gaze span below which a calibration is amplifying noise badly. The span
+#: is how far the iris travels, in its own diameters, across the whole
+#: screen — and the mapping multiplies landmark noise by (screen / span).
+#: A session measured at 0.079 vertical produced 208 px of mean error;
+#: an earlier one at 0.200 on the same machine was three times better.
+MIN_GOOD_SPAN_Y = 0.12
+MIN_GOOD_SPAN_X = 0.25
+
+
+@dataclass(frozen=True)
+class GazeSpan:
+    """How far the gaze travelled during calibration, in iris diameters.
+
+    This is the single most important thing about a calibration and it is
+    not visible in the fit residuals at all: a mapping can pass exactly
+    through every control point and still be useless, because a small span
+    means every pixel of landmark noise is multiplied by a huge factor on
+    its way to the cursor.
+
+    The span is mostly set by how far the user sits from the *screen*. Far
+    away, the screen subtends a small visual angle, the eyes barely rotate
+    to cover it, and the signal collapses into the noise.
+    """
+
+    x: float
+    y: float
+
+    @property
+    def ok(self) -> bool:
+        return self.x >= MIN_GOOD_SPAN_X and self.y >= MIN_GOOD_SPAN_Y
+
+    def amplification(self, screen_w: int, screen_h: int) -> tuple[float, float]:
+        """Screen pixels per unit of gaze signal, per axis."""
+        return gaze_scale((0.0, self.x), (0.0, self.y), screen_w, screen_h)
+
+    def advice(self) -> str:
+        """What to tell the user, or an empty string when it is fine."""
+        if self.ok:
+            return ""
+        return (
+            "Bakis araligi cok dar (yatay %.3f, dikey %.3f; hedef en az "
+            "%.2f / %.2f). Ekrana daha yakin otur ve kalibrasyonda kafani "
+            "degil sadece gozlerini oynat. Dar aralik, landmark gurultusunu "
+            "dogrudan imlec hatasina cevirir." % (
+                self.x, self.y, MIN_GOOD_SPAN_X, MIN_GOOD_SPAN_Y)
+        )
+
+
+def gaze_span(points_eye) -> GazeSpan:
+    """Measure the gaze span of a set of calibration readings."""
+    arr = np.asarray(points_eye, dtype=float)
+    if arr.ndim != 2 or len(arr) < 2:
+        return GazeSpan(0.0, 0.0)
+    lo, hi = arr.min(axis=0), arr.max(axis=0)
+    return GazeSpan(float(hi[0] - lo[0]), float(hi[1] - lo[1]))
+
+
 @dataclass(frozen=True)
 class CalibrationQuality:
     """Leave-one-out accuracy of a fitted calibration.

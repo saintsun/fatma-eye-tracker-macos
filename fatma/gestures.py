@@ -78,6 +78,7 @@ class GestureDetector:
         cooldown_s: float = 0.45,
         brow_ema_alpha: float = 0.001,
         baseline_warmup: int = 15,
+        brow_enabled: bool = False,
     ) -> None:
         if ear_open <= ear_closed:
             raise ValueError("ear_open must exceed ear_closed")
@@ -94,6 +95,10 @@ class GestureDetector:
         self.cooldown_s = cooldown_s
         self.brow_ema_alpha = brow_ema_alpha
         self.baseline_warmup = baseline_warmup
+        #: Looking up raises the eyebrows by itself, so this gesture
+        #: fires exactly when the user is reaching for the top of the
+        #: screen. Opt-in rather than on by default.
+        self.brow_enabled = brow_enabled
 
         self.left_closed = False
         self.right_closed = False
@@ -192,7 +197,8 @@ class GestureDetector:
                 self._right_since = None
 
         # Brow raise.
-        if brow is not None and self.brow_baseline is not None:
+        if (self.brow_enabled and brow is not None
+                and self.brow_baseline is not None):
             raised_now = brow > self.brow_baseline * self.brow_raise_ratio
             if raised_now and not self.brow_raised:
                 self.brow_raised = True
@@ -264,7 +270,8 @@ class GestureDetector:
         if ear_right is not None and ear_right < self.ear_open:
             return True
         if (
-            brow is not None
+            self.brow_enabled
+            and brow is not None
             and self.brow_baseline is not None
             and brow > self.brow_baseline * self.brow_guard_ratio
         ):

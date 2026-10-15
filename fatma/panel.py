@@ -221,6 +221,16 @@ label.fld:first-child{margin-top:0}
     </div>
   </div>
   <div class="card">
+    <h2>Bakış aralığı</h2>
+    <p class="sub">Gözlerin tüm ekranı taramak için ne kadar yol kat etti,
+      iris çapı cinsinden. Kalibrasyonun en önemli sayısı ve artıklarda hiç
+      görünmüyor: dar bir aralık, her landmark pikselini yüzlerce ekran
+      pikseline çevirir. Çoğunlukla ekrana olan uzaklığın belirler.</p>
+    <div class="big" id="spanv">—</div>
+    <div id="spandetail"></div>
+  </div>
+
+  <div class="card">
     <h2>Neyi değiştirmeli</h2>
     <p class="sub">Doğruluk skoru kötüyse yeniden kalibre et — sorun
       haritada. Jitter yüksekse çözünürlük ve ortalama — sorun gürültüde.
@@ -378,8 +388,17 @@ function render(){
     : '—';
   kv('#jdetail',[['En iyi (gürültü tabanı)', j.best!=null?j.best.toFixed(0)+' px':'—']]);
 
+  const sp=S.span;
+  $('#spanv').innerHTML = sp
+    ? `${sp.x.toFixed(3)} / ${sp.y.toFixed(3)} <small>yatay / dikey${sp.ok?'':' · ÇOK DAR'}</small>`
+    : '— <small>henüz kalibre edilmedi</small>';
+  kv('#spandetail', sp
+    ? (sp.ok ? [['Durum','Yeterli']] : [['Durum','Dar — ekrana yaklaş'],['Ne yapmalı',sp.advice]])
+    : [['Durum','Kalibrasyon yapınca burada çıkar']]);
+
   const tips=[];
   if(lowres) tips.push(['Kamera 1280 altında','Hassasiyet doğrudan çözünürlüğe bağlı. --width 1280 ile başlat.']);
+  if(sp && !sp.ok) tips.push(['Bakış aralığı dar','Ekrana daha yakın otur. Doğruluğu en çok bu belirliyor.']);
   if(q && q.mean_px>120) tips.push(['Kalibrasyon zayıf','Yeniden kalibre et: her halkaya tam bak, kafanı oynatma.']);
   if(j.best!=null && j.best>60) tips.push(['Jitter yüksek','Yumuşatmayı artır ya da ölü bölgeyi büyüt.']);
   if(S.eye && S.eye!=='auto') tips.push(['Tek göz kullanılıyor','auto moda geçmek gürültüyü √2 azaltır.']);

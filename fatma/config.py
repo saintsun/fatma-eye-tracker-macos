@@ -86,18 +86,27 @@ class Settings:
     brow_raise_ratio: float = 1.15
     brow_guard_ratio: float = 1.10
     brow_hold_s: float = 0.20
+    #: Brow-raise double-click, off by default: looking at the top of
+    #: the screen raises the eyebrows on its own, so the gesture fires
+    #: by itself exactly when the user is trying to reach a menu bar.
+    brow_enabled: bool = False
     click_cooldown_s: float = 0.45
     brow_ema_alpha: float = 0.001
     gestures_enabled: bool = True
 
     # --- calibration ---------------------------------------------------
-    calib_min_samples: int = 5
+    #: Minimum samples behind a confirmed point. At 30 fps the old
+    #: value of 5 was a sixth of a second — short enough to capture
+    #: the gaze still travelling to the target.
+    calib_min_samples: int = 12
     calib_sample_window: int = 15
     calib_clamp_margin: float = 0.05
     #: 9 or 13 targets. The spline is exact at each target and interpolates
     #: between them, so adding the four mid-edge points of the 13-grid cuts
     #: the error in the regions furthest from any target.
     calib_grid: int = 13
+    #: How tightly samples must cluster before a point is accepted.
+    calib_stability: float = 0.02
 
     # --- model / files -------------------------------------------------
     model_path: str = DEFAULT_MODEL_PATH

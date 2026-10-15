@@ -18,7 +18,12 @@ from typing import Sequence
 
 import numpy as np
 
-from .quality import CalibrationQuality, leave_one_out_quality
+from .quality import (
+    CalibrationQuality,
+    GazeSpan,
+    gaze_span,
+    leave_one_out_quality,
+)
 from .tps import TPSFitError, TPSMapping
 
 #: Current on-disk schema. ``load`` refuses anything else rather than
@@ -99,6 +104,7 @@ class Calibrator:
         sample_window: int = 15,
         clamp_margin: float = 0.05,
         grid: int = 9,
+        stability: float = 0.02,
     ) -> None:
         if grid == 13:
             self.POINTS_SCREEN = self.GRID_13
@@ -109,6 +115,9 @@ class Calibrator:
         self.min_samples = min_samples
         self.sample_window = sample_window
         self.clamp_margin = clamp_margin
+        #: How tightly the trailing samples must cluster before a point
+        #: may be confirmed, in iris diameters.
+        self.stability = stability
         self.points_eye: list[np.ndarray] = []
         self.samples: list[tuple[float, float]] = []
         self.idx = 0
@@ -123,6 +132,8 @@ class Calibrator:
         self._previous: tuple | None = None
         #: Cross-validated accuracy of the current fit, once measured.
         self.quality: CalibrationQuality | None = None
+        #: Gaze travel of the current fit; the dominant term in accuracy.
+        self.span: GazeSpan | None = None
 
     # --- state ---------------------------------------------------------
 
@@ -146,9 +157,32 @@ class Calibrator:
         return len(self.samples)
 
     @property
+    def steadiness(self) -> float:
+        """Spread of the trailing samples, in iris diameters.
+
+        Large while the gaze is still travelling to the target, small once
+        it has settled. ``inf`` until enough samples have arrived.
+        """
+        window = self.samples[-self.sample_window:]
+        if len(window) < self.min_samples:
+            return float("inf")
+        xs = [s[0] for s in window]
+        ys = [s[1] for s in window]
+        return max(max(xs) - min(xs), max(ys) - min(ys))
+
+    @property
     def ready_to_confirm(self) -> bool:
-        """True when enough samples back the current target."""
-        return self.active and len(self.samples) >= self.min_samples
+        """True when the gaze has actually settled on the target.
+
+        A sample count alone is not enough: at 30 fps the old threshold of
+        five samples was a sixth of a second, so a key pressed as the target
+        appeared captured the gaze still in flight across the screen. The
+        median then averaged that sweep into the control point, and a single
+        such point bends the whole spline.
+        """
+        return (self.active
+                and len(self.samples) >= self.min_samples
+                and self.steadiness <= self.stability)
 
     # --- collection ----------------------------------------------------
 
@@ -196,7 +230,7 @@ class Calibrator:
             True if a control point was recorded. False if the calibration
             is not running or too few samples have arrived yet.
         """
-        if not self.active or len(self.samples) < self.min_samples:
+        if not self.ready_to_confirm:
             return False
         arr = np.array(self.samples[-self.sample_window:])
         self.points_eye.append(np.median(arr, axis=0))
@@ -229,6 +263,7 @@ class Calibrator:
         # a good one until the cursor misbehaves, and this turns that into
         # a number they can act on.
         self.quality = leave_one_out_quality(eye, scr)
+        self.span = gaze_span(eye)
         # Remember the gaze range the fit actually covers. Outside its
         # convex hull a TPS extrapolates smoothly but without bound, so a
         # glance away from the screen would otherwise fling the cursor.

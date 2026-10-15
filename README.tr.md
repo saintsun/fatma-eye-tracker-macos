@@ -378,7 +378,7 @@ fit'te geri yükleniyor.
 .venv/bin/python -m pytest
 ```
 
-347 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
+366 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
 gerçek mouse gerektiren G/Ç.
 
 ```bash
@@ -391,6 +391,26 @@ Testler sentetik bir yüz üretiyor (`tests/conftest.py`): göz köşeleri tam
 tolerans yerine kesin sayıyla doğrulanıyor. `tests/test_precision.py` simüle
 landmark gürültüsü enjekte edip sinyalin yayılımını ölçüyor; √2 kazancı ve
 altı-landmark referans kamerasız böyle kanıtlandı.
+
+### Ekrana yakın otur
+
+Doğruluğu her ayardan daha çok belirleyen tek şey ve yazılımda değil:
+**ekrana ne kadar uzak oturduğun.** Uzaklaştıkça ekran daha küçük bir görüş
+açısı kaplar, gözlerin onu taramak için daha az döner, ve bakış sinyalinin
+tamamı gürültünün içine çöker.
+
+Aynı makinede ölçülen iki oturum:
+
+| | yatay | dikey | dikey amplifikasyon |
+|---|---|---|---|
+| yakın oturunca | 0.401 | 0.200 | birim başına 4 791 px |
+| geride oturunca | 0.175 | 0.079 | birim başına 12 095 px |
+
+İkinci kalibrasyon her kontrol noktasından tam geçiyordu ve yine de imleci
+hedeften ortalama 208 px uzağa koydu — çünkü üçte bir piksellik landmark
+gürültüsü yüz piksellik imleç hatasına dönüşmüştü. Artıklar bunu hiç
+göremez; bakış aralığı görür, o yüzden her kalibrasyondan sonra ölçülüp
+raporlanıyor ve dar kalırsa uyarı veriyor.
 
 ### Bilinen sınırlar
 

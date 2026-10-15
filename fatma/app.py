@@ -87,6 +87,7 @@ def make_target_image(
     target_size: int,
     step: int = 0,
     total: int = 0,
+    ready: bool | None = None,
 ):
     """Dark fullscreen canvas with a bullseye at a given screen position.
 
@@ -113,11 +114,20 @@ def make_target_image(
         banner = f"{step}/{total}"
         cv2.putText(img, ascii_fold(banner), (40, 70), cv2.FONT_HERSHEY_SIMPLEX,
                     1.6, WHITE, 3)
-        hint = "Halkaya bak, sonra SPACE'e bas    (ESC = iptal)"
-        size, _ = cv2.getTextSize(hint, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+        if ready is None:
+            hint = "Halkaya bak, sonra SPACE'e bas    (ESC = iptal)"
+        elif ready:
+            hint = "HAZIR - simdi SPACE'e bas"
+        else:
+            # Pressing early is the single commonest way to ruin a
+            # calibration, so the screen says plainly when not to.
+            hint = "Halkaya bak ve BEKLE - bakisin oturunca HAZIR yazacak"
+        colour = GREEN if ready else WHITE
+        size, _ = cv2.getTextSize(ascii_fold(hint), cv2.FONT_HERSHEY_SIMPLEX,
+                                  0.9, 2)
         cv2.putText(img, ascii_fold(hint),
                     ((screen_w - size[0]) // 2, canvas_h - 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, WHITE, 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, colour, 2)
         # A moving dot per completed point gives the user proof the window
         # is live — the failure this replaces looked exactly like a frozen
         # or missing window.
@@ -158,6 +168,7 @@ class TrackerApp:
             sample_window=settings.calib_sample_window,
             clamp_margin=settings.calib_clamp_margin,
             grid=settings.calib_grid,
+            stability=settings.calib_stability,
         )
         self.cursor = CursorController(
             settings, self.calibrator, self.screen_w, self.screen_h
@@ -171,11 +182,13 @@ class TrackerApp:
             brow_hold_s=settings.brow_hold_s,
             cooldown_s=settings.click_cooldown_s,
             brow_ema_alpha=settings.brow_ema_alpha,
+            brow_enabled=settings.brow_enabled,
         )
         self.mouse_on = settings.mouse_enabled_at_start
         self.preview_visible = False
         self._last_calib_idx = -1
         self._calib_window_open = False
+        self._last_calib_ready: bool | None = None
         self._target_img: np.ndarray | None = None
         self._rgb: np.ndarray | None = None
         self._frame_times: deque[float] = deque(maxlen=60)
@@ -299,6 +312,7 @@ class TrackerApp:
                     p = landmarks[idx]
                     cv2.circle(frame, (int(p.x * w), int(p.y * h)), 5, YELLOW, -1)
 
+        span = self.calibrator.span
         mc, beta = self.s.smoothing()
         baseline = self.gestures.brow_baseline
         ear_str = (
@@ -402,7 +416,9 @@ class TrackerApp:
                 self._hide_preview_window()
             if not self._calib_window_open:
                 self._open_calibration_window()
-            if self.calibrator.idx != self._last_calib_idx:
+            ready = self.calibrator.ready_to_confirm
+            if (self.calibrator.idx != self._last_calib_idx
+                    or ready != self._last_calib_ready):
                 tx, ty = self.calibrator.current_target
                 self._target_img = make_target_image(
                     int(tx * self.screen_w), int(ty * self.screen_h),
@@ -410,10 +426,13 @@ class TrackerApp:
                     self.s.macos_menu_bar_h, self.s.target_size,
                     step=self.calibrator.idx,
                     total=self.calibrator.total_points,
+                    ready=ready,
                 )
-                print(f"[calib] {self.calibrator.idx + 1}/"
-                      f"{self.calibrator.total_points} — halkaya bak, "
-                      f"SPACE'e bas")
+                self._last_calib_ready = ready
+                if self.calibrator.idx != self._last_calib_idx:
+                    print(f"[calib] {self.calibrator.idx + 1}/"
+                          f"{self.calibrator.total_points} — halkaya bak, "
+                          f"bakışın oturunca SPACE")
                 self._last_calib_idx = self.calibrator.idx
             # Repaint every frame. One imshow per target is not reliably
             # painted: the window needs the event loop to come round
@@ -658,6 +677,7 @@ class TrackerApp:
                 "grade": q.grade(), "worst_index": q.worst_index,
                 "points": len(q.per_point),
             }
+        span = self.calibrator.span
         mc, beta = self.s.smoothing()
         self.bridge.publish({
             "running": True,
@@ -668,6 +688,9 @@ class TrackerApp:
             "calib_total": self.calibrator.total_points,
             "calibrated": self.calibrator.is_calibrated,
             "quality": quality,
+            "span": ({"x": span.x, "y": span.y, "ok": span.ok,
+                      "advice": span.advice()}
+                     if span is not None else None),
             "fps": self.fps,
             "jitter": {
                 "rms": self.jitter.rms,
@@ -782,6 +805,14 @@ class TrackerApp:
         print(f"[calib] doğruluk: {q.grade()} — ortalama {mean_px:.0f} px, "
               f"en kötü {worst_px:.0f} px "
               f"(nokta {q.worst_index + 1}/{len(q.per_point)})")
+        span = self.calibrator.span
+        if span is not None:
+            px_x, px_y = span.amplification(self.screen_w, self.screen_h)
+            print(f"[calib] bakış aralığı: yatay {span.x:.3f} dikey "
+                  f"{span.y:.3f} iris çapı "
+                  f"(1 birim = {px_x:.0f}/{px_y:.0f} px)")
+            if not span.ok:
+                print("[calib] " + span.advice())
         if q.mean >= 0.08:
             print("[calib] bu kalibrasyon zayıf. Yeniden deneyin: her "
                   "hedefe tam bakın, kafanızı oynatmayın, bakış oturmadan "
@@ -848,7 +879,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-preview", action="store_true",
                    help="run without the preview window")
     p.add_argument("--no-gestures", action="store_true",
-                   help="disable wink and brow-raise clicks")
+                   help="disable wink clicks")
+    p.add_argument("--brow", action="store_true",
+                   help="enable the brow-raise double click; off by default "
+                        "because looking up raises the brows on its own")
     p.add_argument("--no-threaded-capture", action="store_true",
                    help="read frames inline instead of in a capture thread")
     p.add_argument("--deadzone", type=float, default=8.0, metavar="PX",
@@ -887,6 +921,7 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         mouse_enabled_at_start=args.mouse,
         show_preview=not args.no_preview,
         gestures_enabled=not args.no_gestures,
+        brow_enabled=args.brow,
         threaded_capture=not args.no_threaded_capture,
         panel_enabled=not args.no_panel,
     )

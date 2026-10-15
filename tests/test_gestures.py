@@ -102,7 +102,8 @@ class TestCooldown:
         """Regression: the cooldown used to be evaluated once per frame
         before any gesture fired, so two gestures coming due together both
         got through and the user got a click plus a double-click."""
-        det = GestureDetector(cooldown_s=1.0, baseline_warmup=1)
+        det = GestureDetector(cooldown_s=1.0, baseline_warmup=1,
+                              brow_enabled=True)
         # Seed a resting baseline, then raise the brows and wink together.
         det.update(OPEN, OPEN, 0.50, 0.0)
         fired = []
@@ -112,8 +113,25 @@ class TestCooldown:
 
 
 class TestBrowRaise:
-    def test_sustained_raise_fires_a_double_click(self):
+    def test_it_is_off_by_default(self):
+        """Looking at the top of the screen raises the eyebrows by itself,
+        so the gesture fires exactly when the user is reaching for the menu
+        bar. A real session produced five unasked-for double clicks."""
         det = GestureDetector(baseline_warmup=1)
+        assert det.brow_enabled is False
+        det.update(OPEN, OPEN, 0.50, 0.0)
+        fired = []
+        for i in range(1, 30):
+            fired += det.update(OPEN, OPEN, 0.90, i * DT)
+        assert fired == []
+
+    def test_a_raised_brow_does_not_freeze_the_cursor_when_disabled(self):
+        det = GestureDetector(baseline_warmup=1)
+        det.update(OPEN, OPEN, 0.50, 0.0)
+        assert det.is_in_progress(OPEN, OPEN, 0.90) is False
+
+    def test_sustained_raise_fires_a_double_click(self):
+        det = GestureDetector(baseline_warmup=1, brow_enabled=True)
         det.update(OPEN, OPEN, 0.50, 0.0)
         fired = []
         for i in range(1, 20):
@@ -121,7 +139,8 @@ class TestBrowRaise:
         assert fired == [Gesture.DOUBLE_CLICK]
 
     def test_a_brief_raise_does_nothing(self):
-        det = GestureDetector(brow_hold_s=0.2, baseline_warmup=1)
+        det = GestureDetector(brow_hold_s=0.2, baseline_warmup=1,
+                              brow_enabled=True)
         det.update(OPEN, OPEN, 0.50, 0.0)
         fired = []
         for i in range(1, 4):
@@ -131,7 +150,8 @@ class TestBrowRaise:
         assert fired == []
 
     def test_a_raise_below_the_ratio_does_nothing(self):
-        det = GestureDetector(brow_raise_ratio=1.15, baseline_warmup=1)
+        det = GestureDetector(brow_raise_ratio=1.15, baseline_warmup=1,
+                              brow_enabled=True)
         det.update(OPEN, OPEN, 0.50, 0.0)
         fired = []
         for i in range(1, 30):
@@ -204,7 +224,7 @@ class TestInProgress:
         assert GestureDetector().is_in_progress(OPEN, OPEN, None) is False
 
     def test_a_raised_brow_freezes_the_cursor(self):
-        det = GestureDetector(baseline_warmup=1)
+        det = GestureDetector(baseline_warmup=1, brow_enabled=True)
         det.update(OPEN, OPEN, 0.50, 0.0)
         assert det.is_in_progress(OPEN, OPEN, 0.80) is True
         assert det.is_in_progress(OPEN, OPEN, 0.50) is False

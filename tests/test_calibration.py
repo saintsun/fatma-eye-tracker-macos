@@ -70,7 +70,10 @@ class TestCollection:
         """While the user moves onto a target their gaze sweeps the screen.
         A mean would drag the control point along that path; the median
         must not."""
-        cal = Calibrator(min_samples=3, sample_window=9)
+        # The steadiness gate is isolated out here so this test is about
+        # the median alone; it has its own tests below.
+        cal = Calibrator(min_samples=3, sample_window=9,
+                         stability=float("inf"))
         cal.start()
         for _ in range(4):           # transition frames, far away
             cal.feed(5.0, 5.0)
