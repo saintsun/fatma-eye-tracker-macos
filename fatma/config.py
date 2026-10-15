@@ -111,6 +111,11 @@ class Settings:
     #: the canvas origin sits this many pixels below screen y=0.
     macos_menu_bar_h: int = 25
     target_size: int = 60
+    #: The browser control panel: every keyboard action, plus live
+    #: precision readouts, on 127.0.0.1 only.
+    panel_enabled: bool = True
+    #: None lets the panel pick the first free port in its range.
+    panel_port: int | None = None
     #: How the calibration target window is shown. "fullscreen" hides
     #: every distraction; "normal" keeps a title bar and does not cover the
     #: menu bar, but paints reliably on window managers where the
@@ -139,6 +144,8 @@ class Settings:
             )
         if self.max_eye_disagreement <= 0:
             raise ValueError("max_eye_disagreement must be positive")
+        if self.panel_port is not None and not (1024 <= self.panel_port <= 65535):
+            raise ValueError("panel_port must be between 1024 and 65535")
         if self.calib_window not in VALID_CALIB_WINDOWS:
             raise ValueError(
                 f"calib_window must be one of {VALID_CALIB_WINDOWS}, "

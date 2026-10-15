@@ -151,6 +151,29 @@ Sabit otur, kafanı oynatma, yüzüne ışık gelsin. Bu üçü her ayardan daha
 
 ---
 
+## Kontrol paneli
+
+Takip başlarken bir tarayıcı paneli açılıyor, yalnızca `127.0.0.1` üzerinde.
+Adresini açılışta yazıyor:
+
+```
+panel: http://127.0.0.1:8766
+```
+
+Klavyenin yaptığı her şey orada — kalibrasyonu başlat, bir hedefi onayla,
+imleci aç kapa, sürüklenmeyi çıpala — artı canlı hassasiyet göstergeleri:
+kare hızı, piksel cinsinden kalibrasyon doğruluğu, ve bakışın sabitken
+jitter. **Hassasiyet** sekmesi bir sayı kötü göründüğünde neyi
+değiştireceğini söylüyor.
+
+İşe yarıyor çünkü tuşların çalışması için önizleme penceresinin odakta
+kalması gerekiyor; panelin gerekmiyor. Kalibrasyonu başka biri telefondan
+yürütebilir, kalibre olan kişi hedeflere bakarken.
+
+`--no-panel` kapatır, `--panel-port N` portu sabitler.
+
+---
+
 ## Bir şey çalışmıyorsa
 
 **Kalibrasyon halkası hiç görünmüyor.** `./run.sh --calib-window normal`
@@ -237,6 +260,7 @@ fatma/
   gestures.py     kırpma + kaş durum makinesi (olay üretir, tıklamaz)
   cursor.py       bakış → piksel hattı: filtre, eşleme, ölü bölge, çıpa
   camera.py       thread'li kare yakalayıcı
+  panel.py        tarayıcı kontrol paneli (yalnızca 127.0.0.1)
   pointer.py      mouse arka uçları (Quartz / PyAutoGUI / Null)
   app.py          OpenCV + MediaPipe çalışma döngüsü ve CLI
 legacy/           refaktör öncesi tek dosyalık sürüm, referans için
@@ -354,7 +378,7 @@ fit'te geri yükleniyor.
 .venv/bin/python -m pytest
 ```
 
-254 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
+329 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
 gerçek mouse gerektiren G/Ç.
 
 ```bash

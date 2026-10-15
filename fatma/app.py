@@ -40,6 +40,7 @@ from .landmarks import (
     normalized_iris_pair,
     visualisation_indices,
 )
+from .panel import Panel, PanelBridge
 from .pointer import create_pointer, screen_size
 from .quality import JitterMeter
 
@@ -157,6 +158,11 @@ class TrackerApp:
         self._frame_times: deque[float] = deque(maxlen=60)
         self._mp_ts = -1
         self.jitter = JitterMeter()
+        self.bridge = PanelBridge()
+        self.panel = Panel(self.bridge, settings.panel_port) \
+            if settings.panel_enabled else None
+        self._quit = False
+        self._face_seen = False
         self.cam_w, self.cam_h = settings.cam_width, settings.cam_height
 
     # --- setup ---------------------------------------------------------
@@ -379,30 +385,11 @@ class TrackerApp:
         if key in (ord('q'), ord('Q')):
             return False
         if key == ord('c'):
-            self.calibrator.start()
-            # A stale anchor from an earlier session would add a constant
-            # bias on top of the new mapping.
-            self.cursor.reset_drift()
-            self.cursor.reset_filters()
+            self._start_calibration()
         elif key == ord(' '):
             # SPACE outside a run means nothing; without this guard a stray
             # press would re-save the loaded calibration on every keystroke.
-            if not self.calibrator.active:
-                pass
-            elif not self.calibrator.confirm():
-                print(f"[calib] hold still — only "
-                      f"{self.calibrator.sample_count} samples so far "
-                      f"(need {self.calibrator.min_samples})")
-            elif self.calibrator.fit_error:
-                print(f"[calib] FAILED: {self.calibrator.fit_error}")
-                print("[calib] press 'c' and look at each bullseye squarely.")
-            elif not self.calibrator.active:
-                # The ninth point landed and the fit succeeded.
-                self.calibrator.save(
-                    self.s.calibration_path, (self.screen_w, self.screen_h)
-                )
-                print(f"[calib] done — saved to {self.s.calibration_path}")
-                self._report_quality()
+            self._confirm_calibration_point()
         elif key == 27:  # ESC
             if self.calibrator.active:
                 self.calibrator.cancel()
@@ -471,6 +458,11 @@ class TrackerApp:
         print("keys: c=calibrate  m=mouse  s=smoothing  a=anchor  "
               "A=reset drift  q=quit")
         print("keep the preview window SMALL so it never covers a target")
+
+        if self.panel is not None and self.panel.start():
+            print(f"panel: {self.panel.url}")
+        elif self.panel is not None:
+            print("panel: port bulunamadi, panel kapali")
 
         t0 = time.monotonic()
         try:
@@ -553,6 +545,12 @@ class TrackerApp:
                         ):
                             self._dispatch(gesture)
 
+                    self._face_seen = landmarks is not None
+                    self._apply_panel_actions()
+                    self._publish_state()
+                    if self._quit:
+                        break
+
                     if timer:
                         timer.add("track", time.perf_counter() - t_stage)
                         t_stage = time.perf_counter()
@@ -573,6 +571,9 @@ class TrackerApp:
                     if max_frames is not None and frames >= max_frames:
                         break
         finally:
+            if self.panel is not None:
+                self.panel.stop()
+            self.bridge.publish({"running": False})
             # The landmarker holds native resources behind a serial
             # dispatcher. Left to the garbage collector, its finaliser can
             # deadlock waiting on an executor that is already winding down,
@@ -588,6 +589,128 @@ class TrackerApp:
                 for line in timer.report():
                     print(line)
         return 0
+
+    # --- control panel -------------------------------------------------
+
+    def _publish_state(self) -> None:
+        """Hand the panel a snapshot of everything it displays."""
+        q = self.calibrator.quality
+        quality = None
+        if q is not None and q.valid:
+            mean_px, worst_px = q.in_pixels(self.screen_w, self.screen_h)
+            quality = {
+                "mean_px": mean_px, "worst_px": worst_px,
+                "grade": q.grade(), "worst_index": q.worst_index,
+                "points": len(q.per_point),
+            }
+        mc, beta = self.s.smoothing()
+        self.bridge.publish({
+            "running": True,
+            "version": __version__,
+            "mouse_on": self.mouse_on,
+            "calibrating": self.calibrator.active,
+            "calib_step": self.calibrator.idx,
+            "calib_total": self.calibrator.total_points,
+            "calibrated": self.calibrator.is_calibrated,
+            "quality": quality,
+            "fps": self.fps,
+            "jitter": {
+                "rms": self.jitter.rms,
+                "best": self.jitter.best,
+                "fixating": self.jitter.is_fixating,
+            },
+            "camera": [self.cam_w, self.cam_h],
+            "screen": [self.screen_w, self.screen_h],
+            "pointer": getattr(self.pointer, "name", "?"),
+            "eye": self.s.dominant_eye,
+            "reference": self.s.eye_reference,
+            "smoothing": {
+                "index": self.s.smoothing_index, "cutoff": mc, "beta": beta,
+                "total": len(self.s.smoothing_levels),
+            },
+            "deadzone": self.s.deadzone_px,
+            "grid": self.s.calib_grid,
+            "gestures": self.s.gestures_enabled,
+            "drift": [self.cursor.drift_dx, self.cursor.drift_dy],
+            "face": self._face_seen,
+        })
+
+    def _apply_panel_actions(self) -> None:
+        """Run whatever the panel queued, on the loop's own thread.
+
+        Doing this here rather than in the HTTP handler is what keeps the
+        tracker single-threaded: OpenCV, MediaPipe and the filters are only
+        ever touched from the capture loop.
+        """
+        for action, value in self.bridge.drain():
+            if action == "mouse":
+                self.mouse_on = bool(value)
+            elif action == "calibrate":
+                self._start_calibration()
+            elif action == "confirm":
+                self._confirm_calibration_point()
+            elif action == "cancel":
+                if self.calibrator.active:
+                    self.calibrator.cancel()
+            elif action == "anchor":
+                if self.calibrator.is_calibrated:
+                    self.cursor.anchor()
+            elif action == "reset_drift":
+                self.cursor.reset_drift()
+            elif action == "smoothing":
+                if 0 <= value < len(self.s.smoothing_levels):
+                    self.s.smoothing_index = value
+                    self.cursor.set_smoothing(*self.s.smoothing())
+            elif action == "eye":
+                if value in VALID_EYES:
+                    self.s.dominant_eye = value
+            elif action == "reference":
+                if value in VALID_REFERENCES:
+                    self.s.eye_reference = value
+            elif action == "grid":
+                if value in VALID_GRIDS:
+                    self.s.calib_grid = value
+                    # Takes effect on the next run; swapping the target list
+                    # mid-calibration would strand the collected points.
+                    if not self.calibrator.active:
+                        self.calibrator = Calibrator(
+                            min_samples=self.s.calib_min_samples,
+                            sample_window=self.s.calib_sample_window,
+                            clamp_margin=self.s.calib_clamp_margin,
+                            grid=value,
+                        )
+                        self.calibrator.load(self.s.calibration_path)
+                        self.cursor.calibrator = self.calibrator
+            elif action == "deadzone":
+                self.s.deadzone_px = max(0.0, float(value))
+            elif action == "gestures":
+                self.s.gestures_enabled = bool(value)
+            elif action == "quit":
+                self._quit = True
+
+    def _start_calibration(self) -> None:
+        self.calibrator.start()
+        # A stale anchor from an earlier session would add a constant bias
+        # on top of the new mapping.
+        self.cursor.reset_drift()
+        self.cursor.reset_filters()
+
+    def _confirm_calibration_point(self) -> None:
+        if not self.calibrator.active:
+            return
+        if not self.calibrator.confirm():
+            print(f"[calib] hold still — only "
+                  f"{self.calibrator.sample_count} samples so far "
+                  f"(need {self.calibrator.min_samples})")
+        elif self.calibrator.fit_error:
+            print(f"[calib] FAILED: {self.calibrator.fit_error}")
+            print("[calib] press 'c' and look at each bullseye squarely.")
+        elif not self.calibrator.active:
+            self.calibrator.save(
+                self.s.calibration_path, (self.screen_w, self.screen_h)
+            )
+            print(f"[calib] done — saved to {self.s.calibration_path}")
+            self._report_quality()
 
     def _report_quality(self) -> None:
         """Print the cross-validated accuracy of the current calibration.
@@ -681,6 +804,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="calibration file to load and save")
     p.add_argument("--model", metavar="PATH",
                    help="path to face_landmarker.task")
+    p.add_argument("--no-panel", action="store_true",
+                   help="do not start the browser control panel")
+    p.add_argument("--panel-port", type=int, metavar="PORT",
+                   help="port for the control panel (default: first free "
+                        "from 8766)")
     p.add_argument("--benchmark", type=int, nargs="?", const=200,
                    metavar="FRAMES",
                    help="run FRAMES frames (default 200), print per-stage "
@@ -705,7 +833,10 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         show_preview=not args.no_preview,
         gestures_enabled=not args.no_gestures,
         threaded_capture=not args.no_threaded_capture,
+        panel_enabled=not args.no_panel,
     )
+    if args.panel_port:
+        kwargs["panel_port"] = args.panel_port
     if args.calibration:
         kwargs["calibration_path"] = args.calibration
     if args.model:
@@ -721,6 +852,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    if args.benchmark:
+        settings.panel_enabled = False
     backend = "null" if args.dry_run or args.benchmark else args.pointer
     try:
         app = TrackerApp(settings, pointer_backend=backend)

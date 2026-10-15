@@ -152,6 +152,29 @@ things matter more than any setting.
 
 ---
 
+## The control panel
+
+A browser panel opens with the tracker, on `127.0.0.1` only. It prints its
+address at startup:
+
+```
+panel: http://127.0.0.1:8766
+```
+
+Everything the keyboard does is there — start calibration, confirm a target,
+turn the pointer on and off, anchor the drift — plus the live precision
+readouts: frame rate, calibration accuracy in pixels, and jitter while your
+gaze is held. The **Hassasiyet** tab says what to change when a number looks
+wrong.
+
+Useful because the preview window has to keep focus for the keys to work; the
+panel does not. A carer can drive the calibration from a phone on the same
+machine's browser while the person being calibrated looks at the targets.
+
+`--no-panel` turns it off, `--panel-port N` pins the port.
+
+---
+
 ## If something does not work
 
 **The calibration ring never appears.** Use `./run.sh --calib-window normal`.
@@ -238,6 +261,7 @@ fatma/
   gestures.py     wink + brow state machine (emits events, never clicks)
   cursor.py       gaze → pixel pipeline: filter, map, deadzone, drift
   camera.py       threaded frame grabber
+  panel.py        the browser control panel (127.0.0.1 only)
   pointer.py      mouse backends (Quartz / PyAutoGUI / Null)
   app.py          OpenCV + MediaPipe runtime loop and CLI
 legacy/           the pre-refactor single-file version, for reference
@@ -355,7 +379,7 @@ fit.
 .venv/bin/python -m pytest
 ```
 
-254 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
+329 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
 the I/O that needs a camera and a real mouse.
 
 ```bash
