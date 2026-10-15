@@ -1,192 +1,231 @@
-# Fatma: deviceless eye tracker
+<div align="center">
 
-Control the mouse pointer with your eyes, using nothing but the webcam your
-laptop already has. No headset, no infrared illuminator, no dedicated
-hardware, no subscription.
+# Fatma: Eye Tracker
 
-Iris landmarks come from MediaPipe's FaceLandmarker. A thin-plate-spline
-calibration maps them to screen coordinates. Winks and brow raises become
-clicks.
+**Move the mouse pointer with your eyes.**
 
-*Türkçe: [README.tr.md](README.tr.md)*
+No headset, no infrared, no dedicated hardware — just the webcam your laptop
+already has. Everything runs on your machine, and no video ever leaves it.
 
-> **This is not a medical device, and not an assistive device you should
-> depend on.** Accuracy is roughly 50–150 px — good enough to steer toward
-> a region of the screen, not to hit a small button reliably. Do not rely
-> on it to call for help, to communicate in an emergency, or as anyone's
-> only means of operating a computer. If you need dependable eye control,
-> look at purpose-built infrared trackers and at [OptiKey](https://github.com/OptiKey/OptiKey).
+![platform](https://img.shields.io/badge/platform-macOS%2013%2B-111?style=flat-square)
+![python](https://img.shields.io/badge/python-3.12-111?style=flat-square)
+![cost](https://img.shields.io/badge/cost-free-00c853?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-111?style=flat-square)
 
-## Status
+***English** · [Türkçe](README.tr.md)*
 
-Working and tested on macOS (Apple Silicon, Python 3.12). Linux and Windows
-are untested — the tracking core is portable, the pointer backend and the
-window handling are not.
+*v0.2.0*
 
-Every control is a key press today, which means a person who can only move
-their eyes cannot start, calibrate or stop it without someone else present.
-Gaze-only control is written but parked, see [`parked/`](parked/).
+</div>
 
-## Install
+---
 
-```bash
-git clone <your-fork-url> Fatma
-cd Fatma
-./run.sh
-```
+> **Not a medical device, and not something to depend on.** Accuracy is
+> roughly 50–150 px — enough to steer toward a region of the screen, not to
+> hit a small button reliably. Do not rely on it to call for help, to
+> communicate in an emergency, or as anyone's only way of operating a
+> computer. If you need dependable eye control, look at purpose-built
+> infrared trackers and at [OptiKey](https://github.com/OptiKey/OptiKey).
 
-First run creates the virtualenv, installs dependencies, downloads the
-landmark model (3.6 MB) and starts. Arguments pass straight through:
-`./run.sh --eye left`.
+---
 
-MediaPipe is stable on Python 3.12; 3.13 and newer often have no wheel.
+## Install: one command
 
-### macOS permissions
-
-Two permissions are needed on first run. Grant them, then quit and reopen
-your terminal.
-
-- **Camera** — System Settings → Privacy & Security → Camera
-- **Accessibility** (to move the pointer) — System Settings → Privacy &
-  Security → Accessibility
-
-## Use
-
-Press `c` and look at each target in turn, pressing SPACE on each. Then `m`
-to hand the pointer over to your eyes.
-
-| Key | Action |
-| --- | --- |
-| `c` | Start calibration — look at each target, SPACE to confirm |
-| `SPACE` | Confirm the current calibration target |
-| `ESC` | Cancel calibration, keeping the previous one |
-| `m` | Toggle pointer control |
-| `s` | Cycle smoothing (4 presets) |
-| `a` | Anchor drift — look at the centre of the screen and press |
-| `A` | Clear the drift anchor |
-| `q` | Quit |
-
-Gestures: **left wink** = click, **right wink** = right click, **raise both
-brows** = double click. An ordinary two-eyed blink does nothing.
+Open Terminal (⌘ + Space → type "Terminal" → Enter), paste the line below and
+press Enter:
 
 ```bash
-python -m fatma --dry-run        # track and preview, never touch the mouse
-python -m fatma --benchmark      # 200 frames, per-stage timings, then exit
-python -m fatma --eye left       # left / right / both / auto
-python -m fatma --grid 9         # 9 calibration targets instead of 13
-python -m fatma --no-gestures    # disable wink and brow clicks
-python -m fatma --help           # everything
+curl -fsSL https://raw.githubusercontent.com/saintsun/fatma-eye-tracker-macos/main/install.sh | bash
 ```
 
-If the full-screen calibration target never appears, use
-`--calib-window normal`.
+That is all. It takes 2–3 minutes, mostly downloading.
 
-## Accuracy
+---
 
-One number governs everything here, and it is unforgiving: **the gaze
-signal travels less than half an iris diameter across the entire screen.**
-Measured from a real calibration on a 1470×956 display:
+## Buy Fatma something
 
-| axis | gaze range | screen | scale |
-| --- | --- | --- | --- |
-| horizontal | 0.401 iris diameters | 1470 px | 1 unit = 3663 px |
-| vertical | 0.200 iris diameters | 956 px | 1 unit = 4791 px |
+The project is free and stays free. If it earns its keep, you can feed Fatma.
 
-So 50 px of cursor accuracy demands 0.014 iris diameters of landmark
-precision. At 640×480 the iris is about 18 px across, which makes **one
-pixel of landmark error worth ~206 screen pixels**. The whole system runs
-in the sub-pixel regime, and no amount of filter tuning changes that.
+[![Payoneer](https://img.shields.io/badge/Payoneer-Buy%20Fatma%20something-FF4800?style=for-the-badge&logo=payoneer&logoColor=white&labelColor=0D1117)](https://link.payoneer.com/Token?t=B8694A2C126D470EAE34E7CC7A0817D9&src=pl)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-39FF14?style=for-the-badge&logo=githubsponsors&logoColor=white&labelColor=0D1117)](https://github.com/sponsors/saintsun)
 
-What does change it, in order of effect:
+| | |
+|---|---|
+| $5 | A Turkish coffee |
+| $10 | Döner wrap |
+| $25 | İskender |
+| $50 | Hookah session |
+| $100 | A night at the pavyon |
 
-1. **Capture resolution.** The largest lever. 640 → 1280 halves the error,
-   → 1920 thirds it. It used to be too expensive; now that the pointer call
-   costs 0.03 ms instead of 114 ms, it is free. Default is **1280×720**. If
-   the camera refuses that mode, a warning is printed at startup — silently
-   dropping to 640 would halve precision invisibly.
-2. **Both eyes.** Two eyes measure the same gaze with independent noise, so
-   averaging cuts it by **√2**. `--eye auto` (default) averages while they
-   agree and falls back to one eye when they do not — strabismus, a drooping
-   lid, an eye out of frame.
-3. **A steadier reference.** The iris offset is measured against a reference
-   point. That used to be two eye corners; it is now **six landmarks**,
-   each corner plus the contour point above and below it. Averaging cuts
-   reference noise by about √3, and the vertical symmetry means a lowering
-   eyelid cancels to first order instead of leaking into the vertical
-   channel. `--reference corners` restores the old behaviour.
-4. **13 targets.** Spline error peaks furthest from any target — along the
-   middle of each edge. The 13-point grid puts a target exactly there.
+---
 
-### Measuring it
+## Install: the details
 
-So you can check rather than guess:
+The command downloads and installs everything it needs:
 
-- **Calibration accuracy** is cross-validated the moment calibration ends.
-  Each target is held out in turn, the spline is refitted on the rest, and
-  the held-out target predicted. That is the honest estimate of behaviour
-  *between* the targets, which is where the cursor spends all its time.
-  Mean and worst error are printed in pixels, naming the target that spoiled
-  it.
-- **Jitter** is live in the preview: how far the cursor wanders in pixels
-  while your gaze is held. The "best" figure is the quietest fixation seen,
-  which is the noise floor your setup can reach.
+| | |
+|---|---|
+| Project files | into `~/Fatma` |
+| Homebrew and Python 3.12 | installed if missing |
+| MediaPipe, OpenCV, NumPy | into a virtualenv inside the folder |
+| Face landmark model | 3.6 MB |
 
-They measure different things and have different cures: a poor calibration
-score means recalibrate; high jitter means resolution and averaging.
+**Requirements:** a Mac running macOS 13 or newer, with a webcam. Tested on
+Apple Silicon; Intel should work but is untested.
 
-### What is verified and what is not
+MediaPipe is stable on Python 3.12. Newer interpreters often have no wheel,
+which is why the installer insists on that version.
 
-`tests/test_precision.py` injects simulated landmark noise and measures the
-spread of the resulting signal. The √2 gain from binocular fusion and the
-six-landmark reference being quieter than two corners are both established
-that way — they are ratios that follow from averaging independent samples,
-so they hold whatever the real noise turns out to be.
+<details>
+<summary>I would rather not use the Terminal</summary>
 
-Not verified, stated plainly: how much of that survives on real faces,
-whether a given camera really delivers 720p at 30 fps, and whether the
-anchor landmark indices are truly the corner neighbours in your model (they
-are taken from the documented FaceMesh topology, not compared against live
-output). `--reference corners --eye right --width 640` restores the old
-behaviour for an A/B.
+Download the ZIP from the repository, double-click to unpack it, then open
+Terminal in that folder and run `./run.sh`. A double-clickable installer is
+not shipped yet.
+</details>
 
-### Known limits
+### After installing: two permissions
 
-- **Keep your head still.** Tracking uses eye movement only; head pose is
-  not compensated. This is the largest remaining source of error, and
-  MediaPipe already exposes the head transform — it is simply not wired up
-  yet.
-- Light on your face helps a lot.
-- Calibration is saved to `calibration.json` and restored at startup. It is
-  stored in screen fractions, so it survives a resolution change, but not a
-  change of camera angle or seating position.
+macOS asks for two permissions; both are required.
 
-## Performance
+**Camera:** click **Allow** the first time it starts.
 
-Per-frame tracking cost is ~2–5 ms, so the loop is bound by the camera, not
-by the code. Getting there meant fixing PyAutoGUI:
+**Accessibility:** needed to move the pointer. If the pointer never moves,
+this is almost always why:
 
-| method | per frame |
-| --- | --- |
-| `pyautogui.moveTo()`, stock settings | **114 ms** |
-| `pyautogui.moveTo()`, `PAUSE = 0` | 11 ms |
-| Quartz `CGEventPost` directly | **0.03 ms** |
+```bash
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+```
 
-Every public PyAutoGUI call is wrapped in a decorator that sleeps for
-`pyautogui.PAUSE` afterwards, 0.1 s by default. One `moveTo` per frame caps
-the loop at about 8 fps no matter how fast the camera and the model are.
-`fatma.pointer.QuartzPointer` posts the Core Graphics event itself.
+Find **Terminal** (or iTerm) in the list and turn the switch **on**, then quit
+and reopen the terminal.
 
-The second problem was latency. `VideoCapture.read()` returns frames in
-order, so a loop slower than the camera falls progressively further behind
-and the lag grows through the session. `fatma.camera.FrameGrabber` captures
-on its own thread and keeps only the newest frame.
+### Your first session
 
-Measure it on your own machine with `--benchmark`.
+```bash
+cd ~/Fatma && ./run.sh
+```
 
-## Layout
+1. Press **`c`**. The screen goes dark and a ring appears.
+2. Look straight at the ring and press **SPACE**. Repeat for all 13 rings.
+3. When it finishes it prints your accuracy, in pixels.
+4. Press **`m`** to hand the pointer over to your eyes.
 
-The maths and the state machinery import no camera, screen or mouse, which
-is what makes them testable.
+Sit still, keep your head steady, and have light on your face. Those three
+things matter more than any setting.
+
+---
+
+## What it does
+
+- **You look, the pointer follows.** Iris position is tracked through the
+  webcam and mapped to the screen by a calibration you do once per sitting.
+- **Winks click.** Left wink is a click, right wink is a right click, raising
+  both brows is a double click. An ordinary two-eyed blink does nothing.
+- **It tells you how accurate it is.** After calibration it cross-validates
+  itself and prints the error in pixels, so you know whether to trust it or
+  do it again.
+- **Free and fully local.** No API key, no account, no subscription, no
+  internet connection after the install. Video never leaves the machine.
+
+---
+
+## Everyday use
+
+| Key | What happens |
+|---|---|
+| **`c`** | start calibration — look at each ring, SPACE to confirm |
+| **SPACE** | confirm the ring you are looking at |
+| **ESC** | cancel calibration, keeping the previous one |
+| **`m`** | pointer control on / off |
+| **`s`** | change smoothing (4 levels) |
+| **`a`** | drift anchor — look at the centre of the screen and press |
+| **`A`** | clear the drift anchor |
+| **`q`** | quit |
+
+```bash
+./run.sh --dry-run        # track and preview, never touch the mouse
+./run.sh --benchmark      # 200 frames, per-stage timings, then exit
+./run.sh --no-gestures    # turn off wink and brow clicks
+./run.sh --help           # everything
+```
+
+---
+
+## If something does not work
+
+**The calibration ring never appears.** Use `./run.sh --calib-window normal`.
+The full-screen window is prettier but some window managers eat its first
+frame.
+
+**The pointer does not move.** Is the pointer switched on — press `m` and
+check the preview. If it still will not move, Accessibility permission is
+missing; see above.
+
+**It is wildly inaccurate.** Look at the accuracy line printed after
+calibration. Above ~120 px means the calibration itself went wrong, not the
+tracking: recalibrate, looking squarely at each ring and keeping your head
+still. The message names the ring that spoiled it.
+
+**It drifts over time.** Head position has shifted. Look at the centre of the
+screen and press `a`. If that is not enough, recalibrate.
+
+**The pointer shakes.** Press `s` a few times for heavier smoothing, or raise
+the tremor threshold: `./run.sh --deadzone 15`.
+
+**The camera does not open.** Camera permission, or another application is
+holding the camera. Close Zoom, Teams, Photo Booth.
+
+**Update:**
+
+```bash
+cd ~/Fatma && git pull && ./install.sh
+```
+
+Your calibration is preserved.
+
+---
+
+## Cost and privacy
+
+- **Nothing to pay.** No API key, no account, no subscription.
+- **Video never leaves the machine.** Face tracking runs locally. The only
+  download is the model, during install.
+- The app touches only the camera and Accessibility (to move the pointer).
+- Your `calibration.json` describes your own eyes and seating position. It is
+  excluded from the repository; do not paste it into issues.
+
+---
+
+## Uninstall
+
+```bash
+rm -rf ~/Fatma
+```
+
+Nothing is installed outside that folder. Homebrew and Python are left alone
+because other programs use them. Remove the Camera and Accessibility entries
+for your terminal in System Settings if you want them gone.
+
+---
+
+## For developers
+
+Everything below is technical: how it works, what was measured, and the traps
+found along the way.
+
+### The flow
+
+```
+webcam → threaded grabber (newest frame only) → MediaPipe FaceLandmarker
+      → iris offset in iris diameters → temporal median → One-Euro filter
+      → thin-plate-spline calibration → drift offset → deadzone → CGEventPost
+
+eyelid + brow geometry → gesture state machine → click events
+```
+
+The maths and the state machinery import no camera, screen or mouse, which is
+what makes them testable.
 
 ```
 fatma/
@@ -207,15 +246,117 @@ parked/           gaze-only control, written but not wired in
 
 Only `app.py` imports cv2, mediapipe or pyautogui.
 
-## Tests
+### What governs accuracy (measured)
+
+One number governs everything, and it is unforgiving: **the gaze signal
+travels less than half an iris diameter across the entire screen.** From a
+real calibration on a 1470×956 display:
+
+| axis | gaze range | screen | scale |
+|---|---|---|---|
+| horizontal | 0.401 iris diameters | 1470 px | 1 unit = 3663 px |
+| vertical | 0.200 iris diameters | 956 px | 1 unit = 4791 px |
+
+So 50 px of cursor accuracy demands 0.014 iris diameters of landmark
+precision. At 640×480 the iris is about 18 px across, which makes **one pixel
+of landmark error worth ~206 screen pixels**. The whole system runs in the
+sub-pixel regime, and no amount of filter tuning changes that.
+
+What does change it, in order of effect:
+
+1. **Capture resolution.** 640 → 1280 halves the error, → 1920 thirds it. It
+   used to be too expensive; now that the pointer call costs 0.03 ms instead
+   of 114 ms, it is free. Default is 1280×720, and a warning is printed if the
+   camera refuses that mode — silently dropping to 640 would halve precision
+   invisibly.
+2. **Both eyes.** Two eyes measure the same gaze with independent noise, so
+   averaging cuts it by **√2**. `--eye auto` (default) averages while they
+   agree and falls back to one eye when they do not: strabismus, a drooping
+   lid, an eye out of frame.
+3. **A steadier reference.** The iris offset is measured against a reference
+   point, which used to be two eye corners and is now **six landmarks** —
+   each corner plus the contour point above and below it. Averaging cuts
+   reference noise by about √3, and the vertical symmetry means a lowering
+   eyelid cancels to first order instead of leaking into the vertical channel.
+   `--reference corners` restores the old behaviour.
+4. **13 targets.** Spline error peaks furthest from any target, along the
+   middle of each edge. The 13-point grid puts a target exactly there.
+
+### Resource usage (measured, M3)
+
+| | |
+|---|---|
+| Per-frame tracking cost | 2–5 ms, so the loop is camera-bound |
+| MediaPipe inference | 1.5–6 ms at 640×480 through 1920×1080 |
+| Pointer move (Quartz) | 0.03 ms |
+| 30 fps budget | 33.3 ms |
+
+### Measuring accuracy
+
+- **Calibration accuracy** is cross-validated the moment calibration ends.
+  Each target is held out in turn, the spline refitted on the rest, and the
+  held-out target predicted. That is the honest estimate of behaviour
+  *between* the targets, which is where the cursor spends all its time.
+- **Jitter** is live in the preview: how far the cursor wanders in pixels
+  while the gaze is held. The "best" figure is the quietest fixation seen,
+  which is the noise floor the setup can reach.
+
+They measure different things and have different cures: a poor calibration
+score means recalibrate; high jitter means resolution and averaging.
+
+### Traps found along the way
+
+**PyAutoGUI cost 114 ms per frame.** Every public call is wrapped in a
+decorator that sleeps for `pyautogui.PAUSE` afterwards, 0.1 s by default, and
+runs a fail-safe check that queries the cursor position before it. One
+`moveTo` per frame caps the loop near 8 fps regardless of how fast the camera
+and the model are. Setting `PAUSE = 0` brings it to 11 ms; posting the Core
+Graphics event directly brings it to 0.03 ms. This one bug was the difference
+between "the tracker is slow" and "the tracker is camera-bound".
+
+**Latency crept upward through the session.** `VideoCapture.read()` returns
+frames in order, so a loop slower than the camera falls progressively further
+behind and the lag grows the longer you use it — which no filter tuning can
+fix. Capture now runs on its own thread and keeps only the newest frame.
+
+**Calibration could not be completed at all.** The target image was pushed to
+the window only when the target index changed, and the window was recreated
+and re-asserted full-screen each time, so the window-server's full-screen
+transition swallowed that single frame. The window stayed blank — and because
+the preview had already been destroyed, no OpenCV window was left to receive
+keystrokes, so SPACE never reached the application. The window is now created
+once per run and repainted every frame.
+
+**MediaPipe deadlocked on exit.** The landmarker holds native resources behind
+a serial dispatcher. Left to the garbage collector, its finaliser waits on an
+executor that is already winding down and the process hangs instead of
+quitting. It is closed explicitly now; `close()` is idempotent, so the
+finaliser becomes a no-op.
+
+**`np.eye(n) * np.inf` is NaN off the diagonal.** It was masking the diagonal
+of a distance matrix to find coincident calibration points. `0 * inf` is NaN,
+so every off-diagonal cell became NaN, the comparison never fired, and a
+degenerate calibration reached the solver and failed there with a misleading
+message instead of being caught.
+
+**Timestamps collided once the loop got fast.** MediaPipe's video mode rejects
+a timestamp that does not advance, and with 114 ms gone from every frame, two
+frames landing inside the same millisecond stopped being hypothetical.
+
+**Abandoning a calibration destroyed the working one.** Pressing `c` cleared
+the mapping immediately, so backing out with ESC left the user with nothing.
+The previous mapping is now set aside and restored on cancel, and on a failed
+fit.
+
+### Tests
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest
 ```
 
-254 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered
-is the I/O that needs a camera and a real mouse.
+254 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
+the I/O that needs a camera and a real mouse.
 
 ```bash
 python -m pytest -m "not slow"     # skip the tests that run real inference
@@ -223,27 +364,50 @@ python -m pytest --cov=fatma       # coverage report
 ```
 
 Tests build a synthetic face (`tests/conftest.py`) with eye corners exactly
-0.1 apart and iris centres exactly 0.3 apart, so every derived measure can
-be asserted against an exact number rather than a tolerance.
+0.1 apart and iris centres exactly 0.3 apart, so every derived measure is
+asserted against an exact number rather than a tolerance.
+`tests/test_precision.py` injects simulated landmark noise and measures the
+spread of the signal, which is how the √2 binocular gain and the six-landmark
+reference are established without a camera.
 
-## Contributing
+### Known limits
 
-The most useful things to pick up, roughly in order:
+- **Head pose is not compensated.** Tracking uses eye movement only, so you
+  have to keep your head still. This is the largest remaining source of error,
+  and MediaPipe already exposes the head transform — it is simply not wired up
+  yet.
+- macOS only in practice. The tracking core is portable; the pointer backend
+  and the window handling are not.
+- **Every control is a key press,** so a person who can only move their eyes
+  cannot start, calibrate or stop it without someone else present. A dwell
+  engine and a gaze menu are written and waiting in `parked/`.
+- Calibration is per sitting. It survives a resolution change, but not a
+  change of camera angle or seating position.
+- Not verified on real faces: how much of the simulated precision gain
+  survives, whether a given camera really delivers 720p at 30 fps, and whether
+  the anchor landmark indices are truly the corner neighbours in your model
+  (they come from the documented FaceMesh topology).
+  `--reference corners --eye right --width 640` restores the old behaviour for
+  an A/B.
+
+### Where to help
 
 1. **Head-pose compensation.** Enable
-   `output_facial_transformation_matrixes`, use yaw and pitch to correct
-   the iris offset. Biggest remaining accuracy win.
-2. **Linux and Windows pointer backends.** `fatma/pointer.py` already has
-   the seam; `QuartzPointer` is the model to copy.
-3. **Gaze-only control.** `parked/` has a dwell engine and a gaze menu
-   written and ready to wire in. See `parked/README.md`.
+   `output_facial_transformation_matrixes`, use yaw and pitch to correct the
+   iris offset. Biggest remaining accuracy win.
+2. **Linux and Windows pointer backends.** `fatma/pointer.py` already has the
+   seam; `QuartzPointer` is the model to copy.
+3. **Gaze-only control.** See `parked/README.md`.
 
-Keep new logic out of `app.py` where you can — that is the only module that
+Keep new logic out of `app.py` where you can — it is the only module that
 cannot be tested without hardware.
+
+---
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE) © Eren Güneş
 
-Built on [MediaPipe](https://github.com/google-ai-edge/mediapipe) (Apache
-2.0) and [OpenCV](https://opencv.org/) (Apache 2.0).
+Built on [MediaPipe](https://github.com/google-ai-edge/mediapipe) and
+[OpenCV](https://opencv.org/), both Apache 2.0. An independent project, not
+affiliated with or endorsed by Google.
