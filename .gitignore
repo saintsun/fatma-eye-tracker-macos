@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.DS_Store
+calibration.json.tmp
+
+# Personal calibration — specific to one person, one camera, one seating
+# position. Never belongs in a shared repository.
+calibration.json
+
+# Fetched on first run by run.sh (3.6 MB).
+face_landmarker.task
+
+# Local Claude Code permissions, not shared.
+.claude/settings.local.json

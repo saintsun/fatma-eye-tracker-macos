@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fatma"
+version = "0.2.0"
+description = "Fatma: deviceless eye tracker"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "opencv-python>=4.8.0",
+    "mediapipe>=0.10.9",
+    "numpy>=1.24.0",
+    "pyautogui>=0.9.54",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-timeout>=2.3"]
+
+[project.scripts]
+fatma = "fatma.app:main"
+
+[tool.setuptools]
+packages = ["fatma"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+addopts = "-q --strict-markers --timeout=90 --timeout-method=thread"
+markers = ["slow: needs the landmark model and runs real inference"]
+filterwarnings = [
+    # MediaPipe and its protobuf stack are noisy on import; they are not
+    # this project's warnings to fix.
+    "ignore::DeprecationWarning:google.*",
+    "ignore::UserWarning:google.*",
+]
