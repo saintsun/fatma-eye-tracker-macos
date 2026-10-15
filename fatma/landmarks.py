@@ -300,7 +300,9 @@ def visualisation_indices(
         return LEFT_IRIS_RING, (LEFT_EYE_LEFT, LEFT_EYE_RIGHT)
     if dominant_eye == "right":
         return RIGHT_IRIS_RING, (RIGHT_EYE_LEFT, RIGHT_EYE_RIGHT)
-    if dominant_eye == "both":
+    if dominant_eye in ("both", "auto"):
+        # "auto" reads both eyes and only drops one when they disagree, so
+        # showing both is what matches what the tracker is actually doing.
         return (
             LEFT_IRIS_RING + RIGHT_IRIS_RING,
             (LEFT_EYE_LEFT, LEFT_EYE_RIGHT, RIGHT_EYE_LEFT, RIGHT_EYE_RIGHT),

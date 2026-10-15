@@ -5,6 +5,7 @@ import math
 import pytest
 
 from conftest import EYE_WIDTH, INTER_IRIS, IRIS_R, make_face
+from fatma.config import VALID_EYES
 from fatma.landmarks import (
     LEFT_EYE_LEFT,
     LEFT_EYE_RIGHT,
@@ -141,15 +142,46 @@ class TestVisualisationIndices:
         ("left", LEFT_IRIS_RING),
         ("right", RIGHT_IRIS_RING),
         ("both", LEFT_IRIS_RING + RIGHT_IRIS_RING),
+        ("auto", LEFT_IRIS_RING + RIGHT_IRIS_RING),
     ])
     def test_returns_the_active_eye(self, eye, expected_ring):
         ring, corners = visualisation_indices(eye)
         assert ring == expected_ring
-        assert len(corners) == (4 if eye == "both" else 2)
+        assert len(corners) == (2 if eye in ("left", "right") else 4)
 
     def test_unknown_eye_rejected(self):
         with pytest.raises(ValueError):
             visualisation_indices("nose")
+
+
+class TestEveryConfiguredEyeModeWorks:
+    """Sweep every mode the settings accept through every function that
+    branches on it.
+
+    Regression: "auto" was added to the accepted modes and made the
+    default, but ``visualisation_indices`` still only knew left/right/both.
+    Nothing failed until the preview tried to draw, at which point the
+    application crashed on its first frame with a face in it. Driving these
+    from VALID_EYES means a mode cannot be accepted by the settings without
+    every consumer handling it.
+    """
+
+    @pytest.mark.parametrize("eye", VALID_EYES)
+    def test_visualisation_indices_handles_it(self, eye):
+        ring, corners = visualisation_indices(eye)
+        assert ring and corners
+        assert all(isinstance(i, int) for i in ring + corners)
+
+    @pytest.mark.parametrize("eye", VALID_EYES)
+    def test_normalized_iris_pair_handles_it(self, eye):
+        value = normalized_iris_pair(make_face(gaze=(0.2, -0.1)), eye)
+        assert value is not None
+
+    @pytest.mark.parametrize("eye", VALID_EYES)
+    def test_settings_accept_it(self, eye):
+        from fatma.config import Settings
+
+        assert Settings(dominant_eye=eye).dominant_eye == eye
 
 
 def test_fixture_geometry_is_what_the_docstring_claims():

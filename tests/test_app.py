@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from fatma.config import Settings
+from conftest import make_face
+from fatma.config import VALID_EYES, Settings
 
 cv2 = pytest.importorskip("cv2")
 
@@ -110,6 +111,64 @@ class TestKeyHandling:
 
     def test_unknown_keys_are_ignored(self, app):
         assert app._handle_key(ord('z')) is True
+
+
+class TestOverlay:
+    """The preview overlay, drawn on every visible frame.
+
+    Regression: nothing exercised this path, because every other test runs
+    with the preview off. A mode the overlay did not know about therefore
+    sailed through the whole suite and crashed on the first frame that had
+    a face in it.
+    """
+
+    @staticmethod
+    def _frame():
+        return np.full((480, 640, 3), 40, dtype=np.uint8)
+
+    @pytest.mark.parametrize("eye", VALID_EYES)
+    def test_draws_for_every_eye_mode(self, eye):
+        try:
+            app = TrackerApp(Settings(dominant_eye=eye, show_preview=False),
+                             pointer_backend="null")
+        except Exception as exc:                  # pragma: no cover
+            pytest.skip(f"no display/pointer available: {exc}")
+        frame = self._frame()
+        app._draw_overlay(frame, make_face(gaze=(0.2, -0.1)),
+                          0.3, 0.3, 0.5, 30.0)
+        assert not np.array_equal(frame, self._frame()), "nothing was drawn"
+
+    def test_draws_without_a_face(self, app):
+        """Looking away must not crash the overlay; the status text still
+        has to render."""
+        frame = self._frame()
+        app._draw_overlay(frame, None, None, None, None, 0.0)
+        assert not np.array_equal(frame, self._frame())
+
+    def test_draws_before_any_calibration(self, app):
+        app.calibrator.tps = None
+        app.calibrator.quality = None
+        frame = self._frame()
+        app._draw_overlay(frame, make_face(), 0.3, 0.3, 0.5, 30.0)
+        assert not np.array_equal(frame, self._frame())
+
+    def test_draws_with_a_calibration_quality_report(self, app):
+        from fatma.quality import CalibrationQuality
+
+        app.calibrator.quality = CalibrationQuality(
+            per_point=(0.01, 0.03), mean=0.02, worst=0.03, worst_index=1
+        )
+        frame = self._frame()
+        app._draw_overlay(frame, make_face(), 0.3, 0.3, 0.5, 30.0)
+        assert not np.array_equal(frame, self._frame())
+
+    def test_draws_while_gestures_are_latched(self, app):
+        app.gestures.left_closed = True
+        app.gestures.right_closed = True
+        app.gestures.brow_raised = True
+        frame = self._frame()
+        app._draw_overlay(frame, make_face(), 0.05, 0.05, 0.9, 30.0)
+        assert not np.array_equal(frame, self._frame())
 
 
 class TestFps:
