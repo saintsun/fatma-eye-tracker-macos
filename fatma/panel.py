@@ -159,6 +159,23 @@ label.fld:first-child{margin-top:0}
 @media (max-width:760px){.toasts{left:16px;right:18px;align-items:stretch}
   .toast{max-width:100%}}
 .off{opacity:.45;pointer-events:none}
+.hero{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.hero .state{flex:1;min-width:200px}
+.hero .state b{display:block;font-size:17px;font-weight:650;margin-bottom:3px}
+.hero .state span{font-size:12.5px;color:var(--dim)}
+button.power{padding:15px 26px;font-size:15px;font-weight:650;border-radius:13px;
+  background:rgba(0,255,163,.14);border:1px solid var(--ok);color:var(--ok);
+  font-family:inherit;cursor:pointer;box-shadow:0 0 22px rgba(0,255,163,.18)}
+button.power:hover{box-shadow:0 0 30px rgba(0,255,163,.35)}
+button.power.stop{background:rgba(255,77,109,.13);border-color:var(--err);
+  color:var(--err);box-shadow:0 0 22px rgba(255,77,109,.16)}
+button.power.stop:hover{box-shadow:0 0 30px rgba(255,77,109,.35)}
+button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
+.err{margin-bottom:13px;padding:13px 15px;border-radius:13px;font-size:13px;
+  line-height:1.5;color:#ffb3c0;border:1px solid rgba(255,77,109,.5);
+  background:linear-gradient(180deg,rgba(255,77,109,.12),var(--card))}
+.err b{display:block;margin-bottom:4px;color:#ff8da0}
+.idle .card.needs-tracking{opacity:.45}
 </style></head><body>
 <div class="toasts" id="toasts"></div>
 
@@ -175,7 +192,19 @@ label.fld:first-child{margin-top:0}
 <div class="chips" id="chips"></div>
 
 <section data-p="kontrol">
+  <div class="err" id="errbox" hidden></div>
+
   <div class="card">
+    <div class="hero">
+      <div class="state">
+        <b id="statetitle">—</b>
+        <span id="statesub"></span>
+      </div>
+      <button class="power" id="bpower">Takibi başlat</button>
+    </div>
+  </div>
+
+  <div class="card needs-tracking">
     <h2>İmleç</h2>
     <p class="sub" id="mousesub">Gözlerin imleci sürsün mü.</p>
     <div class="row">
@@ -185,7 +214,7 @@ label.fld:first-child{margin-top:0}
     </div>
   </div>
 
-  <div class="card">
+  <div class="card needs-tracking">
     <h2>Kalibrasyon</h2>
     <p class="sub" id="calibsub">—</p>
     <div class="row">
@@ -196,7 +225,7 @@ label.fld:first-child{margin-top:0}
     <div class="bar"><i id="calibbar" style="width:0%"></i></div>
   </div>
 
-  <div class="card">
+  <div class="card needs-tracking">
     <h2>Durum</h2>
     <div id="status"></div>
   </div>
@@ -332,32 +361,50 @@ function kv(host,rows){
 
 function render(){
   $('#ver').textContent='v'+(S.version||'?');
-  $('#navst').textContent = !S.running ? '⚪️'
+  const tr=!!S.tracking;
+  $('#navst').textContent = !S.running ? '⚪️' : !tr ? '⏸'
     : S.calibrating ? '🎯' : S.mouse_on ? '🔴' : '😴';
+  document.body.classList.toggle('idle', !tr);
+
+  const eb=$('#errbox');
+  if(S.error){ eb.hidden=false;
+    eb.innerHTML='<b>Başlatılamadı</b>'+String(S.error)
+      .replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+  else eb.hidden=true;
+
+  const bp=$('#bpower');
+  bp.textContent = tr ? 'Takibi durdur' : 'Takibi başlat';
+  bp.classList.toggle('stop', tr);
+  $('#statetitle').textContent = tr
+    ? (S.calibrating ? 'Kalibrasyon sürüyor' : 'Takip çalışıyor')
+    : 'Takip kapalı';
+  $('#statesub').textContent = tr
+    ? (S.face ? 'Kamera açık, yüz görünüyor.' : 'Kamera açık, yüz aranıyor.')
+    : 'Kamera kapalı. Başlatınca macOS kamera izni isteyebilir.';
 
   const cam=(S.camera||[0,0]).join('×'), scr=(S.screen||[0,0]).join('×');
-  const lowres = (S.camera||[0])[0] < 1280;
+  const lowres = tr && (S.camera||[0])[0] < 1280;
   $('#chips').innerHTML=[
-    `<span class="chip"><b>${(S.fps||0).toFixed(0)}</b> fps</span>`,
-    `<span class="chip ${lowres?'warn':''}">kamera <b>${cam}</b></span>`,
+    `<span class="chip"><b>${tr?(S.fps||0).toFixed(0):'—'}</b> fps</span>`,
+    `<span class="chip ${lowres?'warn':''}">kamera <b>${tr?cam:'—'}</b></span>`,
     `<span class="chip">ekran <b>${scr}</b></span>`,
     `<span class="chip">pointer <b>${S.pointer||'?'}</b></span>`,
-    `<span class="chip ${S.face?'ok':'warn'}">${S.face?'yüz görünüyor':'yüz yok'}</span>`,
+    `<span class="chip ${S.face?'ok':(tr?'warn':'')}">${tr?(S.face?'yüz görünüyor':'yüz yok'):'kamera kapalı'}</span>`,
     `<span class="chip ${S.calibrated?'ok':'err'}">${S.calibrated?'kalibre':'kalibre değil'}</span>`,
   ].join('');
 
   const bm=$('#bmouse');
   bm.textContent = S.mouse_on ? 'İmleci durdur' : 'İmleci aç';
   bm.classList.toggle('on', !!S.mouse_on);
-  bm.disabled = !S.calibrated && !S.mouse_on;
+  bm.disabled = !tr || (!S.calibrated && !S.mouse_on);
   $('#mousesub').textContent = !S.calibrated
     ? 'Önce kalibre et — kalibrasyon olmadan imleç anlamlı bir yere gitmez.'
     : S.mouse_on ? 'İmleç gözlerini takip ediyor.' : 'İmleç şu an serbest.';
-  $('#banchor').disabled = !S.calibrated;
-  $('#bdrift').disabled = !S.calibrated;
+  $('#banchor').disabled = !tr || !S.calibrated;
+  $('#bdrift').disabled = !tr || !S.calibrated;
 
   const c=S.calibrating;
-  $('#bcalib').disabled=c; $('#bconfirm').disabled=!c; $('#bcancel').disabled=!c;
+  $('#bcalib').disabled=c||!tr; $('#bconfirm').disabled=!c; $('#bcancel').disabled=!c;
   $('#calibbar').style.width = c ? (100*S.calib_step/S.calib_total)+'%' : '0%';
   $('#calibsub').textContent = c
     ? `${S.calib_step+1}/${S.calib_total} — halkaya bak, sonra onayla (ya da SPACE)`
@@ -419,6 +466,7 @@ function render(){
   document.body.classList.toggle('off', !S.running);
 }
 
+$('#bpower').onclick=()=>{ $('#bpower').disabled=true; act(S.tracking?'stop':'start'); };
 $('#bmouse').onclick=()=>act('mouse',!S.mouse_on);
 $('#banchor').onclick=()=>act('anchor');
 $('#bdrift').onclick=()=>act('reset_drift');
@@ -433,7 +481,7 @@ $('#rdead').onchange=e=>act('deadzone',parseFloat(e.target.value));
 async function poll(){
   try{
     const r=await fetch('/api/state');
-    S=await r.json(); render();
+    S=await r.json(); $('#bpower').disabled=false; render();
   }catch(e){ $('#navst').textContent='⚪️'; }
 }
 poll(); setInterval(poll,700);
@@ -450,6 +498,8 @@ class PanelBridge:
 
     #: Actions the panel may request, mapped to the type of their value.
     ACTIONS = {
+        "start": None,
+        "stop": None,
         "mouse": bool,
         "calibrate": None,
         "confirm": None,

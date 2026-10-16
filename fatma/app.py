@@ -198,6 +198,13 @@ class TrackerApp:
         self.panel = Panel(self.bridge, settings.panel_port) \
             if settings.panel_enabled else None
         self._quit = False
+        #: True while the camera is open and the loop is running.
+        self._tracking = False
+        #: Last failure, surfaced on the panel instead of killing
+        #: the process — a camera permission that has not been
+        #: granted is the common case, and the user is looking at
+        #: the browser, not at a terminal.
+        self.last_error: str | None = None
         self._face_seen = False
         self._preview_sized = False
         self.cam_w, self.cam_h = settings.cam_width, settings.cam_height
@@ -526,11 +533,6 @@ class TrackerApp:
               "A=reset drift  q=quit")
         print("keep the preview window SMALL so it never covers a target")
 
-        if self.panel is not None and self.panel.start():
-            print(f"panel: {self.panel.url}")
-        elif self.panel is not None:
-            print("panel: port bulunamadi, panel kapali")
-
         t0 = time.monotonic()
         try:
             with source:
@@ -641,13 +643,19 @@ class TrackerApp:
 
                     key = cv2.waitKey(1) & 0xFF
                     if key != 255 and not self._handle_key(key):
+                        self._quit = True
                         break
                     if max_frames is not None and frames >= max_frames:
                         break
+                    if not self._tracking:
+                        # The panel asked for tracking to stop; the camera
+                        # and the model are released on the way out and the
+                        # panel keeps serving.
+                        break
         finally:
-            if self.panel is not None:
-                self.panel.stop()
-            self.bridge.publish({"running": False})
+            self._tracking = False
+            self._hide_preview_window()
+            self._close_calibration_window()
             # The landmarker holds native resources behind a serial
             # dispatcher. Left to the garbage collector, its finaliser can
             # deadlock waiting on an executor that is already winding down,
@@ -663,6 +671,76 @@ class TrackerApp:
                 for line in timer.report():
                     print(line)
         return 0
+
+    # --- serving -------------------------------------------------------
+
+    def serve(self, open_browser: bool = True) -> int:
+        """Serve the panel, tracking only when it asks.
+
+        The camera, the landmark model and the preview window are expensive
+        and intrusive — the camera light comes on, macOS asks for
+        permission, and a stale calibration can send the cursor flying. So
+        the process starts idle: it serves the panel, and opens the camera
+        only when the user presses start.
+
+        It also means a failure has somewhere to go. Started from a
+        terminal, a camera permission error printed a line and exited;
+        here it lands on the page the user is actually looking at, and the
+        process stays up so they can fix it and press start again.
+        """
+        if self.panel is None:
+            print("error: panel kapalı; --no-panel ile serve modu çalışmaz",
+                  file=sys.stderr)
+            return 2
+        if not self.panel.start():
+            print("error: panel için boş port bulunamadı", file=sys.stderr)
+            return 1
+
+        self.calibrator.load(self.s.calibration_path)
+        url = self.panel.url
+        print(f"{LONG_NAME} v{__version__}")
+        print(f"panel: {url}")
+        print("takibi panelden başlat. Bu pencereyi kapatma.")
+        if open_browser:
+            import webbrowser
+
+            webbrowser.open(url)
+
+        try:
+            while not self._quit:
+                self._apply_panel_actions()
+                if self._quit:
+                    break
+                if self._tracking:
+                    self._track_once()
+                else:
+                    self._publish_state()
+                    # Idle costs nothing: no camera, no model, no inference.
+                    time.sleep(0.05)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self._tracking = False
+            self.panel.stop()
+        return 0
+
+    def _track_once(self) -> None:
+        """One tracking session, from camera open to camera closed."""
+        self.last_error = None
+        try:
+            self.run()
+        except FileNotFoundError as exc:
+            self.last_error = str(exc).splitlines()[0]
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+        except Exception as exc:                  # pragma: no cover
+            self.last_error = f"{type(exc).__name__}: {exc}"
+        finally:
+            self._tracking = False
+            self.mouse_on = False
+            if self.last_error:
+                print(f"[hata] {self.last_error}", file=sys.stderr)
+            self._publish_state()
 
     # --- control panel -------------------------------------------------
 
@@ -681,6 +759,8 @@ class TrackerApp:
         mc, beta = self.s.smoothing()
         self.bridge.publish({
             "running": True,
+            "tracking": self._tracking,
+            "error": self.last_error,
             "version": __version__,
             "mouse_on": self.mouse_on,
             "calibrating": self.calibrator.active,
@@ -691,7 +771,7 @@ class TrackerApp:
             "span": ({"x": span.x, "y": span.y, "ok": span.ok,
                       "advice": span.advice()}
                      if span is not None else None),
-            "fps": self.fps,
+            "fps": self.fps if self._tracking else 0.0,
             "jitter": {
                 "rms": self.jitter.rms,
                 "best": self.jitter.best,
@@ -710,7 +790,7 @@ class TrackerApp:
             "grid": self.s.calib_grid,
             "gestures": self.s.gestures_enabled,
             "drift": [self.cursor.drift_dx, self.cursor.drift_dy],
-            "face": self._face_seen,
+            "face": self._face_seen and self._tracking,
         })
 
     def _apply_panel_actions(self) -> None:
@@ -721,7 +801,12 @@ class TrackerApp:
         ever touched from the capture loop.
         """
         for action, value in self.bridge.drain():
-            if action == "mouse":
+            if action == "start":
+                self._tracking = True
+                self.last_error = None
+            elif action == "stop":
+                self._tracking = False
+            elif action == "mouse":
                 self.mouse_on = bool(value)
             elif action == "calibrate":
                 self._start_calibration()
@@ -898,6 +983,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--panel-port", type=int, metavar="PORT",
                    help="port for the control panel (default: first free "
                         "from 8766)")
+    p.add_argument("--track", action="store_true",
+                   help="open the camera straight away instead of waiting "
+                        "for the panel to ask")
+    p.add_argument("--no-browser", action="store_true",
+                   help="do not open the panel in a browser on startup")
     p.add_argument("--benchmark", type=int, nargs="?", const=200,
                    metavar="FRAMES",
                    help="run FRAMES frames (default 200), print per-stage "
@@ -947,8 +1037,22 @@ def main(argv: list[str] | None = None) -> int:
     backend = "null" if args.dry_run or args.benchmark else args.pointer
     try:
         app = TrackerApp(settings, pointer_backend=backend)
-        return app.run(max_frames=args.benchmark,
-                       benchmark=bool(args.benchmark))
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    # Benchmarking and a panel-less run are one-shot: open the camera, do
+    # the work, exit. Otherwise the process serves the panel and tracks
+    # only when asked, so the user never has to touch a terminal again.
+    direct = args.benchmark or not settings.panel_enabled
+    try:
+        if direct:
+            app._tracking = True
+            return app.run(max_frames=args.benchmark,
+                           benchmark=bool(args.benchmark))
+        if args.track:
+            app._tracking = True
+        return app.serve(open_browser=not args.no_browser)
     except FileNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
