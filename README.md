@@ -102,17 +102,23 @@ and reopen the terminal.
 
 ### Your first session
 
-```bash
-cd ~/Fatma && ./run.sh
-```
+**Double-click `Fatma.command`** in the `~/Fatma` folder. The control panel
+opens in your browser; everything happens from there and you never need the
+terminal again. The camera stays off until you press start, so nothing comes
+on and nothing asks for permission just because you opened the page.
 
-1. Press **`c`**. The screen goes dark and a ring appears.
-2. Look straight at the ring and press **SPACE**. Repeat for all 13 rings.
-3. When it finishes it prints your accuracy, in pixels.
-4. Press **`m`** to hand the pointer over to your eyes.
+1. Press **Takibi başlat**. macOS asks for Camera access the first time; if
+   anything goes wrong it is shown on the page, not in a terminal.
+2. Press **Kalibrasyonu başlat**. The screen goes dark and a ring appears.
+3. Look straight at the ring and **wait** — the hint turns green and says
+   HAZIR when your gaze has settled. Only then press **SPACE**. Repeat for
+   all 13 rings. Pressing early is the commonest way to ruin a calibration.
+4. Read the two numbers it prints: the accuracy, and the gaze span.
+5. Press **İmleci aç** to hand the pointer over to your eyes.
 
-Sit still, keep your head steady, and have light on your face. Those three
-things matter more than any setting.
+**Sit close to the screen**, keep your head still, and have light on your
+face. The first of those matters more than every setting in the app put
+together — see Accuracy below.
 
 ---
 
@@ -379,7 +385,7 @@ fit.
 .venv/bin/python -m pytest
 ```
 
-366 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
+383 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
 the I/O that needs a camera and a real mouse.
 
 ```bash

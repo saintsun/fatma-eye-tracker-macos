@@ -101,17 +101,23 @@ kapatıp aç.
 
 ### İlk oturumun
 
-```bash
-cd ~/Fatma && ./run.sh
-```
+`~/Fatma` klasöründeki **`Fatma.command`'a çift tıkla**. Kontrol paneli
+tarayıcıda açılır; her şey oradan yürür ve bir daha terminale dokunman
+gerekmez. Sen başlat demeden kamera açılmaz — sayfayı açtın diye ne ışık
+yanar ne izin sorulur.
 
-1. **`c`**'ye bas. Ekran kararır ve bir halka belirir.
-2. Halkaya dosdoğru bak ve **SPACE**'e bas. 13 halkanın hepsi için tekrarla.
-3. Bitince doğruluğunu piksel cinsinden yazar.
-4. **`m`**'ye basıp imleci gözlerine devret.
+1. **Takibi başlat**'a bas. macOS ilk seferinde kamera izni ister; bir şey
+   ters giderse terminalde değil, sayfada görürsün.
+2. **Kalibrasyonu başlat**'a bas. Ekran kararır ve bir halka belirir.
+3. Halkaya dosdoğru bak ve **bekle** — bakışın oturunca alttaki yazı
+   yeşile dönüp HAZIR der. Ancak o zaman **SPACE**'e bas. 13 halkanın hepsi
+   için tekrarla. Erken basmak, kalibrasyonu bozmanın en yaygın yolu.
+4. Yazdığı iki rakamı oku: doğruluk ve bakış aralığı.
+5. **İmleci aç**'a basıp imleci gözlerine devret.
 
-Sabit otur, kafanı oynatma, yüzüne ışık gelsin. Bu üçü her ayardan daha
-önemli.
+**Ekrana yakın otur**, kafanı sabit tut, yüzüne ışık gelsin. Bunlardan
+ilki, uygulamadaki bütün ayarların toplamından daha çok fark eder —
+aşağıdaki Hassasiyet bölümüne bak.
 
 ---
 
@@ -378,7 +384,7 @@ fit'te geri yükleniyor.
 .venv/bin/python -m pytest
 ```
 
-366 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
+383 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
 gerçek mouse gerektiren G/Ç.
 
 ```bash
