@@ -22,18 +22,39 @@ from typing import Callable
 #: deliberately absent: option+command+escape is Force Quit Applications,
 #: and shadowing the escape hatch of last resort is a poor trade.
 KEYCODES = {
-    "j": 38, "k": 40, "l": 37, "h": 4, "g": 5, "f": 3, "period": 47,
+    "q": 12, "w": 13, "e": 14, "r": 15, "t": 17, "y": 16, "u": 32,
+    "s": 1, "d": 2, "f": 3, "g": 5, "h": 4, "j": 38, "k": 40, "l": 37,
+    "x": 7, "c": 8, "period": 47,
 }
 
-#: Known clashes, shown in the panel. The tap is listen-only, so the key
-#: still reaches the front application: a clash means both things happen,
-#: not that the shortcut fails.
+#: Known clashes with option+command, shown next to the key picker.
+#:
+#: These come from documentation and experience, not from this machine: a
+#: Mac application's key equivalents are compiled into it, not readable
+#: from a preference file. What *is* checkable — the system shortcut table
+#: and user overrides — was checked and is clear. For anything else the
+#: panel's "last pressed" readout settles it: press the combination and
+#: see whether it arrives.
+#:
+#: The tap is listen-only, so a clash means both things happen rather than
+#: the shortcut failing. That is a nuisance for a console, and worse for
+#: something like Close All Windows.
 CONFLICTS = {
-    "j": "Chrome / Firefox: developer console",
+    "c": "Safari: JavaScript console",
+    "d": "macOS: turn Dock hiding on/off",
+    "f": "Safari: search with Google",
+    "h": "macOS: Hide Others (every application)",
+    "j": "Chrome / Edge / Firefox: developer console",
     "k": "Firefox: web console",
-    "h": "macOS: Hide Others",
-    "f": "some apps: full screen",
+    "l": "Safari: show downloads",
+    "t": "several apps: show/hide toolbar",
+    "u": "Safari / Chrome: view page source",
+    "w": "macOS: Close All Windows (every application)",
+    "y": "Finder: Quick Look slideshow",
 }
+
+#: Offered keys with no clash known to this project.
+CLEAN_KEYS = tuple(k for k in KEYCODES if k not in CONFLICTS)
 
 
 class HotkeyError(RuntimeError):

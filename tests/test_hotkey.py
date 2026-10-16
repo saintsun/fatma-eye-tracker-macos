@@ -202,3 +202,84 @@ class TestReconfigurableFromThePanel:
         # The default is J, which Chrome and Firefox use for the console.
         # The tap is listen-only so both still happen; the user is told.
         assert "j" in CONFLICTS
+
+
+class TestFiredReadout:
+    """Application key equivalents are compiled in, not readable from a
+    preference file, so a suspected clash cannot be settled by inspection.
+    Showing when the shortcut last reached us lets the user settle it by
+    pressing the combination and looking."""
+
+    @pytest.fixture
+    def app(self):
+        pytest.importorskip("cv2")
+        from fatma.app import TrackerApp
+
+        try:
+            app = TrackerApp(Settings(show_preview=False, panel_enabled=False,
+                                      hotkey_enabled=False),
+                             pointer_backend="null")
+        except Exception as exc:                  # pragma: no cover
+            pytest.skip(f"no display/pointer available: {exc}")
+        yield app
+        if app.hotkey is not None:
+            app.hotkey.stop()
+
+    def test_nothing_is_reported_before_it_is_pressed(self, app):
+        app._publish_state()
+        assert app.bridge.snapshot()["hotkey"]["fired_ago"] is None
+
+    def test_pressing_it_is_reported(self, app):
+        app._on_hotkey()
+        app._publish_state()
+        fired = app.bridge.snapshot()["hotkey"]["fired_ago"]
+        assert fired is not None and fired < 5
+
+    def test_pressing_it_also_raises_the_panic_flag(self, app):
+        app._on_hotkey()
+        assert app._panic.is_set()
+
+    def test_the_conflicts_table_only_names_offered_keys(self):
+        from fatma.hotkey import CONFLICTS
+
+        assert set(CONFLICTS) <= set(KEYCODES)
+
+    def test_the_keys_without_a_known_clash_are_listed(self):
+        """G and period are the ones left clean, and the recommendation
+        rests on that, so it is worth pinning down."""
+        from fatma.hotkey import CONFLICTS
+
+        clean = set(KEYCODES) - set(CONFLICTS)
+        assert {"g", "period"} <= clean
+
+
+class TestKeyCatalogue:
+    def test_every_keycode_is_distinct(self):
+        """Two keys sharing a code would make one of them silently fire
+        the other."""
+        assert len(set(KEYCODES.values())) == len(KEYCODES)
+
+    def test_the_offered_set_covers_the_home_and_top_rows(self):
+        for key in "qwertyu sdfghjkl xc":
+            if key != " ":
+                assert key in KEYCODES, key
+
+    def test_clean_keys_are_exactly_those_without_a_conflict(self):
+        from fatma.hotkey import CLEAN_KEYS, CONFLICTS
+
+        assert set(CLEAN_KEYS) == set(KEYCODES) - set(CONFLICTS)
+        assert CLEAN_KEYS, "every key cannot be conflicted"
+
+    def test_the_well_known_system_clashes_are_listed(self):
+        """Close All Windows and Hide Others are bound in every Cocoa
+        application, so they are the two worth refusing to shadow quietly."""
+        from fatma.hotkey import CONFLICTS
+
+        assert "w" in CONFLICTS and "h" in CONFLICTS
+
+    def test_conflict_notes_are_renderable(self):
+        from fatma.app import ascii_fold
+        from fatma.hotkey import CONFLICTS
+
+        for note in CONFLICTS.values():
+            assert ascii_fold(note).isascii()

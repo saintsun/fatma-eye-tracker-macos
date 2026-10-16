@@ -29,7 +29,7 @@ from .config import (
 )
 from .cursor import CursorController
 from .gestures import Gesture, GestureDetector
-from .hotkey import CONFLICTS, KEYCODES, GlobalHotkey, describe
+from .hotkey import CLEAN_KEYS, CONFLICTS, KEYCODES, GlobalHotkey, describe
 from .i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 from .landmarks import (
     LEFT_BROW_MID,
@@ -272,6 +272,10 @@ class TrackerApp:
         self.hotkey_error: str | None = None
         #: Set from the hotkey thread, read by the capture loop.
         self._panic = threading.Event()
+        #: When the shortcut last fired, so the panel can show that it
+        #: is reaching us — the only way to settle a suspected clash
+        #: with an application whose shortcuts cannot be read.
+        self.hotkey_fired_at: float | None = None
         self._face_seen = False
         self._preview_sized = False
         self.cam_w, self.cam_h = settings.cam_width, settings.cam_height
@@ -861,6 +865,11 @@ class TrackerApp:
             self.panel.stop()
         return 0
 
+    def _on_hotkey(self) -> None:
+        """Called from the tap's thread; only touches simple state."""
+        self.hotkey_fired_at = time.time()
+        self._panic.set()
+
     def _start_hotkey(self) -> None:
         """Install the panic shortcut, and say so either way.
 
@@ -874,7 +883,7 @@ class TrackerApp:
         self.hotkey_error = None
         if not self.s.hotkey_enabled:
             return
-        hotkey = GlobalHotkey(self._panic.set, key=self.s.hotkey_key)
+        hotkey = GlobalHotkey(self._on_hotkey, key=self.s.hotkey_key)
         if hotkey.start():
             self.hotkey = hotkey
             print(f"panic shortcut: {hotkey.description} stops the pointer")
@@ -958,6 +967,9 @@ class TrackerApp:
                 "error": self.hotkey_error,
                 "keys": list(KEYCODES),
                 "conflicts": CONFLICTS,
+                "clean": list(CLEAN_KEYS),
+                "fired_ago": (time.time() - self.hotkey_fired_at
+                              if self.hotkey_fired_at else None),
             },
             "drift": [self.cursor.drift_dx, self.cursor.drift_dy],
             "face": self._face_seen and self._tracking,

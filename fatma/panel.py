@@ -119,9 +119,9 @@ button.act[disabled]{opacity:.4;cursor:not-allowed;box-shadow:none;
 .kv span:last-child{font-family:"JetBrains Mono",ui-monospace,monospace;
   font-size:12px}
 
-.seg{display:flex;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);
+.seg{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);
   border-radius:11px;padding:3px}
-.seg button{flex:1;padding:7px 10px;border-radius:8px;background:transparent;
+.seg button{flex:1 0 auto;min-width:40px;padding:7px 10px;border-radius:8px;background:transparent;
   border:none;color:var(--dim);font-size:12.5px;font-family:inherit;
   font-weight:500;cursor:pointer}
 .seg button:hover{color:var(--fg)}
@@ -468,13 +468,18 @@ function render(){
   const bh=$('#bhk');
   bh.textContent=T(hk.enabled?'p.set.hotkey_on':'p.set.hotkey_off');
   bh.classList.toggle('on', !!hk.active);
-  seg('#seghk',(hk.keys||[]).map(k=>[k,k==='period'?'.':k.toUpperCase()]),
+  const clean=new Set(hk.clean||[]);
+  seg('#seghk',(hk.keys||[]).map(k=>[k,
+        (k==='period'?'.':k.toUpperCase())+(clean.has(k)?'':' ·')]),
       hk.key,'hotkey');
   const hkrows=[];
   if(hk.description) hkrows.push([T('p.set.hotkey'), hk.description]);
   if(hk.enabled && !hk.active) hkrows.push([T('p.error.title'), T('p.set.hotkey_failed')]);
+  hkrows.push([T('p.set.hotkey_fired'), hk.fired_ago!=null
+    ? T('p.set.hotkey_ago',{n:Math.round(hk.fired_ago)})
+    : T('p.set.hotkey_never')]);
   const clash=(hk.conflicts||{})[hk.key];
-  if(clash) hkrows.push(['⚠', clash]);
+  hkrows.push([clash?'⚠':'✓', clash || T('p.set.hotkey_clean')]);
   kv('#hkdetail', hkrows);
 
   const rd=$('#rdead');
