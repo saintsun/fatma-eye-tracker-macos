@@ -1175,8 +1175,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="path to face_landmarker.task")
     p.add_argument("--no-hotkey", action="store_true",
                    help="do not install the global stop shortcut")
-    p.add_argument("--hotkey-key", default="j", metavar="KEY",
-                   help="letter for the option+command shortcut (default: j)")
+    p.add_argument("--hotkey-key", default="g", metavar="KEY",
+                   help="letter for the option+command shortcut; the panel\n"
+                        "lists which are already taken (default: g)")
     p.add_argument("--no-panel", action="store_true",
                    help="do not start the browser control panel")
     p.add_argument("--panel-port", type=int, metavar="PORT",

@@ -16,6 +16,7 @@ from fatma.hotkey import KEYCODES, GlobalHotkey, HotkeyError, describe
 
 MASKS = {"cmd": 1 << 20, "alt": 1 << 19, "shift": 1 << 17, "ctrl": 1 << 18}
 CMD, ALT, SHIFT, CTRL = (MASKS[k] for k in ("cmd", "alt", "shift", "ctrl"))
+G = KEYCODES["g"]
 J = KEYCODES["j"]
 
 
@@ -23,23 +24,41 @@ def hk(**kw):
     return GlobalHotkey(lambda: None, **kw)
 
 
+class TestDefaultIsClear:
+    def test_the_default_key_has_no_known_clash(self):
+        """It has to be reachable without looking and must not shadow
+        anything in macOS, Safari, Chrome or Edge."""
+        from fatma.hotkey import CLEAN_KEYS, CONFLICTS
+
+        assert Settings().hotkey_key in CLEAN_KEYS
+        assert Settings().hotkey_key not in CONFLICTS
+
+    def test_the_default_is_not_next_to_a_destructive_shortcut(self):
+        """X and S are equally unbound, but sit under Cut and Save: an
+        option that slips off then does something, which is the wrong
+        behaviour for a key pressed in a hurry."""
+        assert Settings().hotkey_key not in ("x", "s", "q")
+
+
 class TestMatching:
     def test_the_exact_combination_matches(self):
-        assert hk().matches(J, CMD | ALT, MASKS)
+        assert hk().matches(G, CMD | ALT, MASKS)
+        assert hk(key="j").matches(J, CMD | ALT, MASKS)
 
     def test_a_different_key_does_not(self):
+        assert not hk().matches(J, CMD | ALT, MASKS)
         assert not hk().matches(KEYCODES["k"], CMD | ALT, MASKS)
 
     def test_a_missing_modifier_does_not(self):
-        assert not hk().matches(J, CMD, MASKS)
-        assert not hk().matches(J, ALT, MASKS)
-        assert not hk().matches(J, 0, MASKS)
+        assert not hk().matches(G, CMD, MASKS)
+        assert not hk().matches(G, ALT, MASKS)
+        assert not hk().matches(G, 0, MASKS)
 
     def test_an_extra_modifier_does_not(self):
-        """Option+Command+J must not also fire on Shift+Option+Command+J,
+        """Option+Command+G must not also fire on Shift+Option+Command+G,
         which is probably some other application's shortcut."""
-        assert not hk().matches(J, CMD | ALT | SHIFT, MASKS)
-        assert not hk().matches(J, CMD | ALT | CTRL, MASKS)
+        assert not hk().matches(G, CMD | ALT | SHIFT, MASKS)
+        assert not hk().matches(G, CMD | ALT | CTRL, MASKS)
 
     def test_a_custom_combination(self):
         key = hk(key="k", cmd=True, alt=False, shift=True)
@@ -53,12 +72,12 @@ class TestMatching:
 
 class TestDescription:
     def test_modifiers_are_named_in_the_mac_order(self):
-        assert describe("j") == "option + command + J"
+        assert describe("g") == "option + command + G"
         assert describe("k", cmd=True, alt=True, shift=True) == (
             "option + shift + command + K")
 
     def test_the_default_is_the_documented_one(self):
-        assert hk().description == "option + command + J"
+        assert hk().description == "option + command + G"
 
 
 class TestLifecycle:
@@ -104,7 +123,7 @@ class TestLifecycle:
 class TestSettings:
     def test_it_is_on_by_default(self):
         assert Settings().hotkey_enabled is True
-        assert Settings().hotkey_key == "j"
+        assert Settings().hotkey_key == "g"
 
     def test_cli_can_turn_it_off(self):
         from fatma.app import build_parser, settings_from_args
@@ -199,8 +218,6 @@ class TestReconfigurableFromThePanel:
         from fatma.hotkey import CONFLICTS
 
         assert set(CONFLICTS) <= set(KEYCODES)
-        # The default is J, which Chrome and Firefox use for the console.
-        # The tap is listen-only so both still happen; the user is told.
         assert "j" in CONFLICTS
 
 

@@ -129,7 +129,11 @@ class Settings:
     #: control: when the pointer misbehaves, clicking a button is the
     #: very thing that has stopped working.
     hotkey_enabled: bool = True
-    hotkey_key: str = "j"
+    #: G is clear of macOS, Safari, Chrome and Edge, it sits on the home
+    #: row where it can be found without looking, and the nearest
+    #: mis-press is harmless: command+G alone is Find Next. X and S are
+    #: equally unbound but sit next to Cut and Save.
+    hotkey_key: str = "g"
     #: The browser control panel: every keyboard action, plus live
     #: precision readouts, on 127.0.0.1 only.
     panel_enabled: bool = True

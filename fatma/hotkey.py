@@ -93,7 +93,7 @@ class GlobalHotkey:
     def __init__(
         self,
         on_fire: Callable[[], None],
-        key: str = "j",
+        key: str = "g",
         cmd: bool = True,
         alt: bool = True,
         shift: bool = False,

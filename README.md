@@ -397,7 +397,7 @@ fit.
 .venv/bin/python -m pytest
 ```
 
-441 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
+443 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
 the I/O that needs a camera and a real mouse.
 
 ```bash
