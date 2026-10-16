@@ -38,7 +38,15 @@ yapıştır ve Enter'a bas:
 curl -fsSL https://raw.githubusercontent.com/saintsun/fatma-eye-tracker-macos/main/install.sh | bash
 ```
 
-Hepsi bu. 2–3 dakika sürer, çoğu indirme.
+Hepsi bu. 2–3 dakika sürer, çoğu indirme. Sonrasında terminale bir daha
+ihtiyacın olmaz: `~/Fatma` içindeki **`Fatma.app`'e çift tıkla**, kontrol
+paneli tarayıcıda açılır. Seni bekleyen bir pencere kalmaz.
+
+Kaldırmak için yine tek komut:
+
+```bash
+~/Fatma/uninstall.sh
+```
 
 ---
 
@@ -228,12 +236,13 @@ Kalibrasyonun korunur.
 ## Kaldırma
 
 ```bash
-rm -rf ~/Fatma
+~/Fatma/uninstall.sh
 ```
 
-O klasörün dışına hiçbir şey kurulmuyor. Homebrew ve Python'a dokunulmuyor
-çünkü başka programlar kullanıyor. İstersen terminalinin Kamera ve
-Erişilebilirlik kayıtlarını System Settings'ten sil.
+O klasörün dışına hiçbir şey kurulmadığı için hepsi bu kadar. Homebrew ve
+Python'a dokunulmuyor çünkü başka programlar kullanıyor; macOS da bir
+uygulama gidince Kamera ve Erişilebilirlik kayıtlarını temizlemiyor,
+isterseniz System Settings'ten elle silin.
 
 ---
 

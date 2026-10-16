@@ -38,7 +38,15 @@ press Enter:
 curl -fsSL https://raw.githubusercontent.com/saintsun/fatma-eye-tracker-macos/main/install.sh | bash
 ```
 
-That is all. It takes 2–3 minutes, mostly downloading.
+That is all. It takes 2–3 minutes, mostly downloading. Afterwards you never
+need the Terminal again: **double-click `Fatma.app`** in `~/Fatma` and the
+control panel opens in your browser. No window sits waiting for you.
+
+To remove it, one command again:
+
+```bash
+~/Fatma/uninstall.sh
+```
 
 ---
 
@@ -229,12 +237,14 @@ Your calibration is preserved.
 ## Uninstall
 
 ```bash
-rm -rf ~/Fatma
+~/Fatma/uninstall.sh
 ```
 
-Nothing is installed outside that folder. Homebrew and Python are left alone
-because other programs use them. Remove the Camera and Accessibility entries
-for your terminal in System Settings if you want them gone.
+Nothing is installed outside that folder, so that is the whole of it.
+Homebrew and Python are left alone because other programs use them, and
+macOS does not clear the Camera and Accessibility entries when an
+application goes — remove those by hand in System Settings if you want them
+gone.
 
 ---
 

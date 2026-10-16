@@ -17,3 +17,9 @@ face_landmarker.task
 
 # Local Claude Code permissions, not shared.
 .claude/settings.local.json
+
+# Built per machine by make_app.py / make_icon.py; paths are baked in.
+Fatma.app/
+assets/Fatma.iconset/
+fatma.log
+.icon-set

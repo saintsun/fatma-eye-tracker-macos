@@ -279,3 +279,29 @@ class TestIconAndBrand:
         svg = pathlib.Path(__file__).resolve().parent.parent / "assets" / "nazar.svg"
         assert svg.exists(), "assets/nazar.svg is the source make_icon.py renders"
         assert "<svg" in svg.read_text()
+
+
+class TestProcessPattern:
+    """The interpreter is .../Python.app/Contents/MacOS/Python, capital P,
+    so a pattern anchored on "python" matches nothing. The uninstaller
+    looked like it stopped the tracker and never did, which left the camera
+    light on after the files were gone."""
+
+    def _scripts(self):
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parent.parent
+        return [p for p in (root / "uninstall.sh", root / "Fatma.command")
+                if p.exists()]
+
+    def test_no_script_matches_the_tracker_by_lowercase_python(self):
+        for path in self._scripts():
+            assert 'pkill -f "python -m fatma"' not in path.read_text(), path
+
+    def test_the_uninstaller_stops_the_tracker(self):
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parent.parent
+        text = (root / "uninstall.sh").read_text()
+        assert "pkill" in text
+        assert "m fatma" in text

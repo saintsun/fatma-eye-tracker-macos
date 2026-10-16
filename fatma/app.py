@@ -31,6 +31,7 @@ from .cursor import CursorController
 from .gestures import Gesture, GestureDetector
 from .hotkey import CLEAN_KEYS, CONFLICTS, KEYCODES, GlobalHotkey, describe
 from .i18n import DEFAULT_LANGUAGE, LANGUAGES, t
+from .macapp import adopt_identity, pump_events
 from .landmarks import (
     LEFT_BROW_MID,
     LEFT_EYE_BOTTOM,
@@ -866,6 +867,10 @@ class TrackerApp:
                     self._track_once()
                 else:
                     self._publish_state()
+                    # Keep the application answering macOS while it waits.
+                    # Nothing else drains the queue when no window is open,
+                    # and an application that never answers gets killed.
+                    pump_events()
                     # Idle costs nothing: no camera, no model, no inference.
                     time.sleep(0.05)
         except KeyboardInterrupt:
@@ -1244,6 +1249,10 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    # Launched from the bundle the Dock still shows "Python" with the
+    # Python rocket, because the interpreter lives outside it. Claim the
+    # name and the icon now that we are running.
+    adopt_identity()
     try:
         settings = settings_from_args(args)
     except ValueError as exc:
