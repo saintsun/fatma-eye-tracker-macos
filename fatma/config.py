@@ -125,6 +125,11 @@ class Settings:
     #: the canvas origin sits this many pixels below screen y=0.
     macos_menu_bar_h: int = 25
     target_size: int = 60
+    #: Global shortcut that stops the pointer from anywhere. A safety
+    #: control: when the pointer misbehaves, clicking a button is the
+    #: very thing that has stopped working.
+    hotkey_enabled: bool = True
+    hotkey_key: str = "j"
     #: The browser control panel: every keyboard action, plus live
     #: precision readouts, on 127.0.0.1 only.
     panel_enabled: bool = True

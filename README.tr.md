@@ -356,6 +356,18 @@ tam ekran geçişi de o tek kareyi yutuyordu. Pencere boş kalıyor, önizleme d
 SPACE uygulamaya hiç ulaşmıyordu. Pencere artık tur başına bir kez açılıp her
 karede yeniden boyanıyor.
 
+**Kalibrasyon penceresi tahminle ölçülüyordu.** Tuval yüksekliği, ekran
+yüksekliğinden varsayılan 25 piksellik menü çubuğu çıkarılarak
+hesaplanıyordu. Ölçtüm: menü çubuğu 33 — üstelik tam ekran bir OpenCV
+penceresi menü çubuğu dahil tüm ekranı kaplıyor. Yani çıkarma işlemi hem
+görüntüyü küçültüp OpenCV'ye %2.7 gerdiriyor, hem de her noktayı
+kalibratörün onun için kaydettiği konumdan kaydırıyordu. Pencerenin
+dikdörtgeni artık pencere sunucusundan geliyor, görüntü tam o boyutta
+çiziliyor, ve bir nokta istenen yere ulaşamadığında *ulaştığı* konum
+kaydediliyor. Bakış ölçümünü noktanın hiç bulunmadığı bir konumla
+eşleştirmek, kalibrasyonun tek bir yerde bariz yanlış olmak yerine her
+yerde hafifçe yanlış olmasına yol açar.
+
 **MediaPipe çıkışta kilitleniyordu.** Landmarker, seri bir dispatcher
 arkasında yerel kaynak tutuyor. Çöp toplayıcıya bırakılınca finalizer'ı
 çoktan kapanmakta olan bir executor'ı bekliyor ve süreç çıkmak yerine
@@ -384,7 +396,7 @@ fit'te geri yükleniyor.
 .venv/bin/python -m pytest
 ```
 
-407 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
+425 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
 gerçek mouse gerektiren G/Ç.
 
 ```bash

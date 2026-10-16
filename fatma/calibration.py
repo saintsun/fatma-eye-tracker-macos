@@ -119,6 +119,11 @@ class Calibrator:
         #: may be confirmed, in iris diameters.
         self.stability = stability
         self.points_eye: list[np.ndarray] = []
+        #: Where each dot actually appeared, in screen fractions.
+        #: Normally the nominal target, but a window that cannot
+        #: reach a screen edge puts the dot somewhere else, and
+        #: the fit has to be told where that was.
+        self.targets_used: list[tuple[float, float]] = []
         self.samples: list[tuple[float, float]] = []
         self.idx = 0
         self.active = False
@@ -197,6 +202,7 @@ class Calibrator:
             self.tps, self.nx_min, self.nx_max, self.ny_min, self.ny_max
         )
         self.points_eye.clear()
+        self.targets_used.clear()
         self.samples.clear()
         self.idx = 0
         self.active = True
@@ -207,6 +213,7 @@ class Calibrator:
         """Abort an in-progress calibration, restoring the previous one."""
         self.active = False
         self.points_eye.clear()
+        self.targets_used.clear()
         self.samples.clear()
         self.idx = 0
         if self._previous is not None:
@@ -219,12 +226,19 @@ class Calibrator:
         if self.active:
             self.samples.append((nx, ny))
 
-    def confirm(self) -> bool:
+    def confirm(self, actual_target: tuple[float, float] | None = None) -> bool:
         """Lock in the current target from the samples collected so far.
 
         The control point is the *median* of the trailing window, not the
         mean: while the user was moving onto the target their gaze swept
         across the screen, and a mean would drag the point along that path.
+
+        Args:
+            actual_target: Where the dot really appeared, in screen
+                fractions. Defaults to the nominal target. They differ when
+                the window cannot reach a screen edge, and fitting against
+                the nominal position would then pair a gaze reading with a
+                place the dot never was.
 
         Returns:
             True if a control point was recorded. False if the calibration
@@ -234,6 +248,10 @@ class Calibrator:
             return False
         arr = np.array(self.samples[-self.sample_window:])
         self.points_eye.append(np.median(arr, axis=0))
+        self.targets_used.append(
+            tuple(actual_target) if actual_target is not None
+            else self.POINTS_SCREEN[self.idx]
+        )
         self.samples.clear()
         self.idx += 1
         if self.idx >= self.total_points:
@@ -243,7 +261,7 @@ class Calibrator:
 
     def _fit(self) -> None:
         eye = np.array(self.points_eye)
-        scr = np.array(self.POINTS_SCREEN, dtype=float)
+        scr = np.array(self.targets_used or self.POINTS_SCREEN, dtype=float)
         try:
             fitted = TPSMapping(eye, scr[:, 0], scr[:, 1])
         except TPSFitError as exc:

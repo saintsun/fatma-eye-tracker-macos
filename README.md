@@ -357,6 +357,18 @@ the preview had already been destroyed, no OpenCV window was left to receive
 keystrokes, so SPACE never reached the application. The window is now created
 once per run and repainted every frame.
 
+**The calibration window was measured by guesswork.** The canvas height
+was the screen height minus an assumed 25-pixel menu bar. Measured, the
+menu bar is 33 — and a full-screen OpenCV window covers the whole screen
+anyway, menu bar included. So the subtraction both shrank the image, leaving
+OpenCV to stretch it by 2.7%, and shifted every dot away from the position
+the calibrator was recording for it. The window's rectangle now comes from
+the window server, the image is drawn at exactly that size, and when a dot
+cannot reach the point it was asked for, the position it *did* reach is
+what gets fitted. Pairing a gaze reading with a place the dot never was is
+how a calibration ends up subtly wrong everywhere instead of obviously
+wrong in one place.
+
 **MediaPipe deadlocked on exit.** The landmarker holds native resources behind
 a serial dispatcher. Left to the garbage collector, its finaliser waits on an
 executor that is already winding down and the process hangs instead of
@@ -385,7 +397,7 @@ fit.
 .venv/bin/python -m pytest
 ```
 
-407 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
+425 tests. Coverage is 98–100% on the pure-logic modules; what is uncovered is
 the I/O that needs a camera and a real mouse.
 
 ```bash

@@ -21,6 +21,7 @@ cv2 = pytest.importorskip("cv2")
 
 from fatma import app as app_module  # noqa: E402
 from fatma.app import TrackerApp, make_target_image  # noqa: E402
+from fatma.screen import Rect  # noqa: E402
 
 
 @pytest.fixture
@@ -88,9 +89,12 @@ class TestWindowLifecycle:
         the window needs the event loop to come round several times before
         anything appears on screen."""
         app.calibrator.start()
+        app._update_calibration_window()          # opens and probes
+        before = fake_cv2.shown.count(app_module.TARGET_WINDOW)
         for _ in range(5):
             app._update_calibration_window()
-        assert fake_cv2.shown.count(app_module.TARGET_WINDOW) == 5
+        after = fake_cv2.shown.count(app_module.TARGET_WINDOW)
+        assert after - before == 5
 
     def test_window_is_created_once_per_run(self, app, fake_cv2):
         """Recreating it per target restarts the full-screen transition,
@@ -151,28 +155,28 @@ class TestTargetImage:
     def test_progress_is_drawn_on_the_target(self):
         """The preview is hidden during calibration, so the canvas is the
         only place the user can see where they are."""
-        plain = make_target_image(400, 300, 800, 600, 25, 60)
-        annotated = make_target_image(400, 300, 800, 600, 25, 60,
-                                      step=2, total=13)
+        plain = make_target_image(400, 300, Rect(0, 0, 800, 600), 60)[0]
+        annotated = make_target_image(400, 300, Rect(0, 0, 800, 600), 60,
+                                      step=2, total=13)[0]
         assert not np.array_equal(plain, annotated)
         # Text and progress dots add light pixels the plain canvas lacks.
         assert (annotated > 200).sum() > (plain > 200).sum()
 
     def test_progress_dots_track_the_step(self):
-        early = make_target_image(400, 300, 800, 600, 25, 60, step=1, total=13)
-        late = make_target_image(400, 300, 800, 600, 25, 60, step=11, total=13)
+        early = make_target_image(400, 300, Rect(0, 0, 800, 600), 60, step=1, total=13)[0]
+        late = make_target_image(400, 300, Rect(0, 0, 800, 600), 60, step=11, total=13)[0]
         band_early = early[50:70]
         band_late = late[50:70]
         yellow = lambda b: ((b[:, :, 1] > 200) & (b[:, :, 2] > 200)).sum()
         assert yellow(band_late) > yellow(band_early)
 
     def test_bullseye_is_still_placed_correctly_with_annotations(self):
-        img = make_target_image(400, 300, 800, 600, 25, 60, step=3, total=13)
+        img, _ = make_target_image(400, 300, Rect(0, 0, 800, 600), 60, step=3, total=13)
         red = np.argwhere((img[:, :, 2] > 200) & (img[:, :, 1] < 60))
         cy, cx = red.mean(axis=0)
-        assert cx == pytest.approx(400, abs=3)
-        assert cy == pytest.approx(300 - 25, abs=3)
+        assert (cx, cy) == pytest.approx((400, 300), abs=3)
 
     def test_annotations_do_not_overflow_the_canvas(self):
-        img = make_target_image(40, 40, 800, 600, 25, 60, step=0, total=13)
-        assert img.shape == (575, 800, 3)
+        img, _ = make_target_image(40, 40, Rect(0, 0, 800, 600), 60,
+                                   step=0, total=13)
+        assert img.shape == (600, 800, 3)

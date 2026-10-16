@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import threading
 import sys
 import time
 from collections import deque
@@ -28,6 +29,7 @@ from .config import (
 )
 from .cursor import CursorController
 from .gestures import Gesture, GestureDetector
+from .hotkey import GlobalHotkey
 from .i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 from .landmarks import (
     LEFT_BROW_MID,
@@ -44,6 +46,7 @@ from .landmarks import (
 from .panel import Panel, PanelBridge
 from .pointer import create_pointer, screen_size
 from .quality import JitterMeter
+from .screen import Rect, coverage, menu_bar_height, place_target, window_rect
 
 # macOS will not shrink a window below the width of its title bar text, so
 # a long title silently sets a floor on the preview size. The key list it
@@ -80,40 +83,40 @@ WHITE = (255, 255, 255)
 
 
 def make_target_image(
-    screen_cx: int,
-    screen_cy: int,
-    screen_w: int,
-    screen_h: int,
-    menu_bar_h: int,
+    screen_x: float,
+    screen_y: float,
+    canvas: Rect,
     target_size: int,
     step: int = 0,
     total: int = 0,
     ready: bool | None = None,
     lang: str = DEFAULT_LANGUAGE,
 ):
-    """Dark fullscreen canvas with a bullseye at a given screen position.
+    """Draw the calibration target, and say where it actually landed.
 
-    macOS keeps its menu bar above "fullscreen" OpenCV windows, so the
-    canvas origin sits ``menu_bar_h`` pixels below screen y=0 and the
-    bullseye is shifted up to compensate.
+    The canvas is the window's measured screen rectangle, so the image is
+    exactly the size of the window and no scaling happens between what is
+    drawn and what is shown. There is no assumed menu-bar offset: a guess
+    there does not merely move the dot, it makes the calibrator record a
+    screen position the dot never occupied, and that wrong pairing is then
+    fitted into the mapping.
 
-    The preview window is hidden during calibration, so the progress and
-    the instruction are drawn here — otherwise the only place that says
-    what to do is the terminal, which is behind a full-screen window.
+    Returns ``(image, (actual_screen_x, actual_screen_y))``. The two differ when
+    the requested point lies outside the window, and the caller must fit
+    against the actual one.
     """
     import cv2
 
-    canvas_h = screen_h - menu_bar_h
-    img = np.full((canvas_h, screen_w, 3), 20, dtype=np.uint8)
+    img = np.full((int(canvas.h), int(canvas.w), 3), 20, dtype=np.uint8)
     r = target_size // 2
-    cx = min(max(screen_cx, r), screen_w - r)
-    cy = min(max(screen_cy - menu_bar_h, r), canvas_h - r)
+    (cx, cy), actual = place_target(screen_x, screen_y, canvas, margin=r + 2)
+
     # The ring itself carries the readiness, because that is the one place
     # the user is already looking. Reading a hint somewhere else means
     # moving the eyes off the target at the exact moment they are about to
     # confirm it, which is what the hint was trying to prevent.
     ring = GREEN if ready else YELLOW
-    cv2.circle(img, (cx, cy), max(r - 2, 6), ring, 2 if not ready else 3)
+    cv2.circle(img, (cx, cy), max(r - 2, 6), ring, 3 if ready else 2)
     cv2.circle(img, (cx, cy), max(r // 2, 4), GREEN if ready else ORANGE, 1)
     cv2.circle(img, (cx, cy), 3, RED, -1)
     if ready:
@@ -129,9 +132,9 @@ def make_target_image(
             # calibration, so the screen says plainly when not to.
             hint = t(lang, "calib.wait")
         _draw_edge_hints(img, hint, GREEN if ready else WHITE,
-                         screen_w, canvas_h, cx, cy, r)
-        _draw_progress(img, step, total, screen_w, canvas_h, cx, cy)
-    return img
+                         int(canvas.w), int(canvas.h), cx, cy, r)
+        _draw_progress(img, step, total, int(canvas.w), int(canvas.h), cx, cy)
+    return img, actual
 
 
 def _draw_progress(img, step, total, screen_w, canvas_h, cx, cy):
@@ -146,8 +149,7 @@ def _draw_progress(img, step, total, screen_w, canvas_h, cx, cy):
 
     banner = f"{step}/{total}"
     (bw, bh), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 1.6, 3)
-    dots_w = total * 18
-    block_w = max(bw, dots_w)
+    block_w = max(bw, total * 18)
     margin = 40
     corners = (
         (margin, margin + bh),
@@ -247,6 +249,9 @@ class TrackerApp:
         self._last_calib_idx = -1
         self._calib_window_open = False
         self._last_calib_ready: bool | None = None
+        self.calib_canvas = Rect(0.0, 0.0, float(self.screen_w),
+                                 float(self.screen_h))
+        self._actual_target: tuple[float, float] | None = None
         self._target_img: np.ndarray | None = None
         self._rgb: np.ndarray | None = None
         self._frame_times: deque[float] = deque(maxlen=60)
@@ -263,6 +268,9 @@ class TrackerApp:
         #: granted is the common case, and the user is looking at
         #: the browser, not at a terminal.
         self.last_error: str | None = None
+        self.hotkey: GlobalHotkey | None = None
+        #: Set from the hotkey thread, read by the capture loop.
+        self._panic = threading.Event()
         self._face_seen = False
         self._preview_sized = False
         self.cam_w, self.cam_h = settings.cam_width, settings.cam_height
@@ -490,6 +498,27 @@ class TrackerApp:
             cv2.resizeWindow(TARGET_WINDOW, self.screen_w,
                              self.screen_h - self.s.macos_menu_bar_h)
         cv2.moveWindow(TARGET_WINDOW, 0, 0)
+        # Paint once so the window exists before asking where it ended up;
+        # the window server has nothing to report otherwise.
+        probe = np.full((max(1, self.screen_h - 1), self.screen_w, 3), 20,
+                        dtype=np.uint8)
+        for _ in range(3):
+            cv2.imshow(TARGET_WINDOW, probe)
+            cv2.waitKey(1)
+        self.calib_canvas = window_rect(TARGET_WINDOW) or Rect(
+            0.0, float(menu_bar_height(self.s.macos_menu_bar_h)),
+            float(self.screen_w),
+            float(self.screen_h - menu_bar_height(self.s.macos_menu_bar_h)),
+        )
+        cover_x, cover_y = coverage(self.calib_canvas, self.screen_w,
+                                    self.screen_h)
+        if cover_y < 0.95 or cover_x < 0.95:
+            # Targets cannot reach the screen edges, so the mapping will be
+            # extrapolating there. Worth saying, because the symptom is the
+            # cursor refusing to reach the top of the screen.
+            print(f"[calib] pencere ekranin %{cover_x * 100:.0f}x"
+                  f"%{cover_y * 100:.0f}'ini kapliyor; kenarlara hedef "
+                  f"konulamiyor. --calib-window fullscreen deneyin.")
         self._calib_window_open = True
 
     def _close_calibration_window(self) -> None:
@@ -515,15 +544,19 @@ class TrackerApp:
             if (self.calibrator.idx != self._last_calib_idx
                     or ready != self._last_calib_ready):
                 tx, ty = self.calibrator.current_target
-                self._target_img = make_target_image(
-                    int(tx * self.screen_w), int(ty * self.screen_h),
-                    self.screen_w, self.screen_h,
-                    self.s.macos_menu_bar_h, self.s.target_size,
+                self._target_img, actual = make_target_image(
+                    tx * self.screen_w, ty * self.screen_h,
+                    self.calib_canvas, self.s.target_size,
                     step=self.calibrator.idx,
                     total=self.calibrator.total_points,
                     ready=ready,
                     lang=self.s.language,
                 )
+                # Fit against where the dot really is, not where it was
+                # asked to be: pairing a gaze reading with a position the
+                # dot never occupied bends the mapping everywhere.
+                self._actual_target = (actual[0] / self.screen_w,
+                                       actual[1] / self.screen_h)
                 self._last_calib_ready = ready
                 if self.calibrator.idx != self._last_calib_idx:
                     print(f"[calib] {self.calibrator.idx + 1}/"
@@ -703,6 +736,14 @@ class TrackerApp:
                         ):
                             self._dispatch(gesture)
 
+                    if self._panic.is_set():
+                        self._panic.clear()
+                        # Stop the pointer but keep tracking: the user
+                        # wants control back, not a camera restart.
+                        self.mouse_on = False
+                        if self.calibrator.active:
+                            self.calibrator.cancel()
+                        print("[panic] pointer stopped")
                     self._face_seen = landmarks is not None
                     self._apply_panel_actions()
                     self._publish_state()
@@ -785,6 +826,7 @@ class TrackerApp:
             print("error: panel için boş port bulunamadı", file=sys.stderr)
             return 1
 
+        self._start_hotkey()
         self.calibrator.load(self.s.calibration_path)
         url = self.panel.url
         print(f"{LONG_NAME} v{__version__}")
@@ -800,6 +842,9 @@ class TrackerApp:
                 self._apply_panel_actions()
                 if self._quit:
                     break
+                if self._panic.is_set():
+                    self._panic.clear()
+                    self.mouse_on = False
                 if self._tracking:
                     self._track_once()
                 else:
@@ -810,8 +855,26 @@ class TrackerApp:
             pass
         finally:
             self._tracking = False
+            if self.hotkey is not None:
+                self.hotkey.stop()
             self.panel.stop()
         return 0
+
+    def _start_hotkey(self) -> None:
+        """Install the panic shortcut, and say so either way.
+
+        A failure here is not fatal — everything it does is also on the
+        panel — but the user needs to know whether the escape hatch they
+        were told about actually exists.
+        """
+        if not self.s.hotkey_enabled:
+            return
+        self.hotkey = GlobalHotkey(self._panic.set, key=self.s.hotkey_key)
+        if self.hotkey.start():
+            print(f"panic shortcut: {self.hotkey.description} stops the pointer")
+        else:
+            print(f"panic shortcut unavailable: {self.hotkey.error}")
+            self.hotkey = None
 
     def _track_once(self) -> None:
         """One tracking session, from camera open to camera closed."""
@@ -955,7 +1018,7 @@ class TrackerApp:
     def _confirm_calibration_point(self) -> None:
         if not self.calibrator.active:
             return
-        if not self.calibrator.confirm():
+        if not self.calibrator.confirm(self._actual_target):
             print(f"[calib] hold still — only "
                   f"{self.calibrator.sample_count} samples so far "
                   f"(need {self.calibrator.min_samples})")
@@ -1072,6 +1135,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="calibration file to load and save")
     p.add_argument("--model", metavar="PATH",
                    help="path to face_landmarker.task")
+    p.add_argument("--no-hotkey", action="store_true",
+                   help="do not install the global stop shortcut")
+    p.add_argument("--hotkey-key", default="j", metavar="KEY",
+                   help="letter for the option+command shortcut (default: j)")
     p.add_argument("--no-panel", action="store_true",
                    help="do not start the browser control panel")
     p.add_argument("--panel-port", type=int, metavar="PORT",
@@ -1111,6 +1178,8 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         brow_enabled=args.brow,
         threaded_capture=not args.no_threaded_capture,
         panel_enabled=not args.no_panel,
+        hotkey_enabled=not args.no_hotkey,
+        hotkey_key=args.hotkey_key,
         language=args.lang,
     )
     if args.panel_port:

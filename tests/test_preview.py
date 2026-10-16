@@ -15,6 +15,7 @@ cv2 = pytest.importorskip("cv2")
 from conftest import make_face  # noqa: E402
 from fatma import app as app_module  # noqa: E402
 from fatma.app import TrackerApp, ascii_fold, make_target_image  # noqa: E402
+from fatma.screen import Rect  # noqa: E402
 
 
 @pytest.fixture
@@ -97,7 +98,8 @@ class TestOverlayIsRenderable:
             return real_puttext(img, text, *args, **kw)
 
         with mock.patch.object(cv2, "putText", spy):
-            make_target_image(400, 300, 800, 600, 25, 60, step=2, total=13)
+            make_target_image(400, 300, Rect(0, 0, 800, 600), 60,
+                              step=2, total=13)
         assert drawn
         for line in drawn:
             assert line.isascii(), f"not renderable: {line!r}"

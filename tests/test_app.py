@@ -9,6 +9,7 @@ from fatma.config import VALID_EYES, Settings
 cv2 = pytest.importorskip("cv2")
 
 from fatma.app import TrackerApp, make_target_image  # noqa: E402
+from fatma.screen import Rect  # noqa: E402
 
 
 @pytest.fixture
@@ -42,34 +43,53 @@ class TestMediaPipeTimestamps:
 
 
 class TestTargetImage:
-    def test_canvas_sits_below_the_menu_bar(self):
-        img = make_target_image(100, 100, 800, 600, menu_bar_h=25,
-                                target_size=60)
-        assert img.shape == (575, 800, 3)
+    """The target is drawn into the window's measured rectangle.
 
-    def test_bullseye_is_drawn_at_the_requested_screen_position(self):
-        """The canvas origin is below the menu bar, so the drawing has to
-        be shifted up by that much to land where the caller asked."""
-        img = make_target_image(400, 300, 800, 600, menu_bar_h=25,
-                                target_size=60)
+    Regression: the canvas used to be sized by subtracting an assumed
+    25-pixel menu bar. Measured, the menu bar is 33 and a full-screen
+    OpenCV window covers the whole screen anyway, so the subtraction both
+    shrank the image — leaving OpenCV to stretch it — and shifted every dot
+    away from the position the calibrator was recording for it.
+    """
+
+    def test_the_image_is_exactly_the_canvas_size(self):
+        img, _ = make_target_image(400, 300, Rect(0, 0, 800, 600), 60)
+        assert img.shape == (600, 800, 3)
+
+    def test_a_canvas_offset_down_the_screen_is_honoured(self):
+        """A window that starts below the menu bar: a dot at screen y=100
+        belongs 67 pixels down its canvas, not 100."""
+        img, actual = make_target_image(400, 100, Rect(0, 33, 800, 567), 60)
+        assert img.shape == (567, 800, 3)
+        assert actual == pytest.approx((400, 100))
         red = np.argwhere((img[:, :, 2] > 200) & (img[:, :, 1] < 60))
         cy, cx = red.mean(axis=0)
         assert cx == pytest.approx(400, abs=2)
-        assert cy == pytest.approx(300 - 25, abs=2)
+        assert cy == pytest.approx(67, abs=2)
 
-    def test_a_target_under_the_menu_bar_stays_visible(self):
-        img = make_target_image(400, 5, 800, 600, menu_bar_h=25,
-                                target_size=60)
+    def test_bullseye_lands_on_the_requested_screen_point(self):
+        img, actual = make_target_image(400, 300, Rect(0, 0, 800, 600), 60)
+        assert actual == pytest.approx((400, 300))
         red = np.argwhere((img[:, :, 2] > 200) & (img[:, :, 1] < 60))
-        assert len(red) > 0, "bullseye was clipped off the canvas"
-        assert red[:, 0].min() >= 0
+        cy, cx = red.mean(axis=0)
+        assert (cx, cy) == pytest.approx((400, 300), abs=2)
 
-    def test_a_target_at_the_right_edge_stays_visible(self):
-        img = make_target_image(799, 300, 800, 600, menu_bar_h=25,
-                                target_size=60)
-        red = np.argwhere((img[:, :, 2] > 200) & (img[:, :, 1] < 60))
-        assert len(red) > 0
-        assert red[:, 1].max() < 800
+    def test_an_unreachable_point_reports_where_it_landed(self):
+        """The dot cannot be drawn above the window, so the calibrator has
+        to be told the position it actually reached — fitting against the
+        position it asked for would pair a gaze reading with a place the
+        dot never was."""
+        _, actual = make_target_image(400, 5, Rect(0, 33, 800, 567), 60)
+        assert actual[1] > 33
+        assert actual[1] == pytest.approx(33 + 32, abs=2)
+
+    def test_a_target_at_an_edge_stays_fully_visible(self):
+        for x, y in ((799, 300), (1, 300), (400, 599), (400, 1)):
+            img, _ = make_target_image(x, y, Rect(0, 0, 800, 600), 60)
+            red = np.argwhere((img[:, :, 2] > 200) & (img[:, :, 1] < 60))
+            assert len(red) > 0
+            assert 0 <= red[:, 0].min() and red[:, 0].max() < 600
+            assert 0 <= red[:, 1].min() and red[:, 1].max() < 800
 
 
 class TestKeyHandling:
