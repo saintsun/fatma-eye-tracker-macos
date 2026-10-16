@@ -221,3 +221,34 @@ class TestCli:
         from fatma.app import build_parser
 
         assert build_parser().parse_args(["--no-browser"]).no_browser is True
+
+
+class TestQuitKey:
+    """Regression: 'q' took the whole process down, panel included.
+
+    The panel is the way back in — it is how tracking gets started at all —
+    so closing it along with the camera left the user with nothing to click
+    and no terminal they were watching.
+    """
+
+    def test_q_stops_tracking_but_not_the_process(self, app):
+        app._tracking = True
+        assert app._handle_key(ord("q")) is False
+        # The loop turns a False into "stop tracking"; the process only
+        # quits when there is no panel to fall back to.
+        assert app._quit is False
+
+    def test_q_quits_outright_when_there_is_no_panel(self):
+        """With --no-panel there is nothing to go back to, so the key has
+        to end the process or it cannot be ended at all."""
+        app = build(panel_enabled=False)
+        assert app.panel is None
+
+    def test_the_panel_can_still_quit(self, app):
+        app.bridge.submit("quit")
+        app._apply_panel_actions()
+        assert app._quit is True
+
+    def test_other_keys_do_not_stop_tracking(self, app):
+        assert app._handle_key(ord("m")) is True
+        assert app._handle_key(ord("s")) is True

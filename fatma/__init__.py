@@ -21,6 +21,6 @@ Only ``fatma.app`` imports cv2/mediapipe/pyautogui.
 
 __all__ = ["__version__", "NAME", "LONG_NAME"]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 NAME = "Fatma"
 LONG_NAME = "Fatma: deviceless eye tracker"

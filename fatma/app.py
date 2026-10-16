@@ -423,8 +423,8 @@ class TrackerApp:
                      f"{'ok' if self.calibrator.is_calibrated else t(lang, 'hud.calib_none')} (c)")
         on, off = t(lang, "hud.on"), t(lang, "hud.off")
         lines = [
-            f"{fps:.0f} fps | {self.cam_w}x{self.cam_h} | "
-            f"pointer: {getattr(self.pointer, 'name', '?')}",
+            f"Fatma {__version__} | {fps:.0f} fps | {self.cam_w}x{self.cam_h}"
+            f" | {getattr(self.pointer, 'name', '?')}",
             jitter,
             calib,
             f"{t(lang, 'hud.mouse')}: {on if self.mouse_on else off} (m)",
@@ -493,7 +493,7 @@ class TrackerApp:
         import cv2
 
         if self.s.calib_window == "fullscreen":
-            cv2.namedWindow(TARGET_WINDOW, cv2.WND_PROP_FULLSCREEN)
+            cv2.namedWindow(TARGET_WINDOW, cv2.WINDOW_NORMAL)
             cv2.setWindowProperty(TARGET_WINDOW, cv2.WND_PROP_FULLSCREEN,
                                   cv2.WINDOW_FULLSCREEN)
         else:
@@ -507,7 +507,13 @@ class TrackerApp:
         # the window server has nothing to report otherwise.
         probe = np.full((max(1, self.screen_h - 1), self.screen_w, 3), 20,
                         dtype=np.uint8)
-        for _ in range(3):
+        for _ in range(6):
+            if self.s.calib_window == "fullscreen":
+                # The window server can drop the request while the window is
+                # still appearing; one call is not reliably enough, which is
+                # how a target window ends up with a title bar on it.
+                cv2.setWindowProperty(TARGET_WINDOW, cv2.WND_PROP_FULLSCREEN,
+                                      cv2.WINDOW_FULLSCREEN)
             cv2.imshow(TARGET_WINDOW, probe)
             cv2.waitKey(1)
         self.calib_canvas = window_rect(TARGET_WINDOW) or Rect(
@@ -582,7 +588,7 @@ class TrackerApp:
     # --- input ---------------------------------------------------------
 
     def _handle_key(self, key: int) -> bool:
-        """Process one keypress. Returns False to quit."""
+        """Process one keypress. Returns False to stop tracking."""
         if key in (ord('q'), ord('Q')):
             return False
         if key == ord('c'):
@@ -778,7 +784,13 @@ class TrackerApp:
 
                     key = cv2.waitKey(1) & 0xFF
                     if key != 255 and not self._handle_key(key):
-                        self._quit = True
+                        # 'q' closes the camera and nothing else. Ending the
+                        # whole process is the panel's Quit button, or Ctrl+C:
+                        # the panel is the way back in, so taking it down with
+                        # the camera leaves the user with no way to start again.
+                        self._tracking = False
+                        if self.panel is None:
+                            self._quit = True
                         break
                     if max_frames is not None and frames >= max_frames:
                         break

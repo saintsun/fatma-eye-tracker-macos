@@ -106,7 +106,15 @@ class TestWindowLifecycle:
         for _ in range(3):
             app._update_calibration_window()
         assert fake_cv2.created.count(app_module.TARGET_WINDOW) == 1
-        assert fake_cv2.fullscreen.count(app_module.TARGET_WINDOW) == 1
+        # Full-screen is re-asserted while the window is appearing, because
+        # the window server can drop the request mid-transition — which is
+        # how a target window ends up wearing a title bar. What must not
+        # repeat is the window's creation.
+        before = fake_cv2.fullscreen.count(app_module.TARGET_WINDOW)
+        app.calibrator.idx = 2
+        for _ in range(3):
+            app._update_calibration_window()
+        assert fake_cv2.fullscreen.count(app_module.TARGET_WINDOW) == before
 
     def test_advancing_a_target_redraws_the_image(self, app, fake_cv2):
         app.calibrator.start()

@@ -14,7 +14,7 @@ already has. Everything runs on your machine, and no video ever leaves it.
 
 ***English** · [Türkçe](README.tr.md)*
 
-*v0.2.0*
+*v0.3.0*
 
 </div>
 
