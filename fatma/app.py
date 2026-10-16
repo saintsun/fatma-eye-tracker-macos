@@ -29,7 +29,7 @@ from .config import (
 )
 from .cursor import CursorController
 from .gestures import Gesture, GestureDetector
-from .hotkey import GlobalHotkey
+from .hotkey import CONFLICTS, KEYCODES, GlobalHotkey, describe
 from .i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 from .landmarks import (
     LEFT_BROW_MID,
@@ -269,6 +269,7 @@ class TrackerApp:
         #: the browser, not at a terminal.
         self.last_error: str | None = None
         self.hotkey: GlobalHotkey | None = None
+        self.hotkey_error: str | None = None
         #: Set from the hotkey thread, read by the capture loop.
         self._panic = threading.Event()
         self._face_seen = False
@@ -867,14 +868,19 @@ class TrackerApp:
         panel — but the user needs to know whether the escape hatch they
         were told about actually exists.
         """
+        if self.hotkey is not None:
+            self.hotkey.stop()
+            self.hotkey = None
+        self.hotkey_error = None
         if not self.s.hotkey_enabled:
             return
-        self.hotkey = GlobalHotkey(self._panic.set, key=self.s.hotkey_key)
-        if self.hotkey.start():
-            print(f"panic shortcut: {self.hotkey.description} stops the pointer")
+        hotkey = GlobalHotkey(self._panic.set, key=self.s.hotkey_key)
+        if hotkey.start():
+            self.hotkey = hotkey
+            print(f"panic shortcut: {hotkey.description} stops the pointer")
         else:
-            print(f"panic shortcut unavailable: {self.hotkey.error}")
-            self.hotkey = None
+            self.hotkey_error = hotkey.error
+            print(f"panic shortcut unavailable: {hotkey.error}")
 
     def _track_once(self) -> None:
         """One tracking session, from camera open to camera closed."""
@@ -943,6 +949,16 @@ class TrackerApp:
             "grid": self.s.calib_grid,
             "gestures": self.s.gestures_enabled,
             "lang": self.s.language,
+            "hotkey": {
+                "key": self.s.hotkey_key,
+                "enabled": self.s.hotkey_enabled,
+                "active": self.hotkey is not None,
+                "description": (self.hotkey.description if self.hotkey
+                                else describe(self.s.hotkey_key)),
+                "error": self.hotkey_error,
+                "keys": list(KEYCODES),
+                "conflicts": CONFLICTS,
+            },
             "drift": [self.cursor.drift_dx, self.cursor.drift_dy],
             "face": self._face_seen and self._tracking,
         })
@@ -1000,6 +1016,16 @@ class TrackerApp:
                         self.cursor.calibrator = self.calibrator
             elif action == "deadzone":
                 self.s.deadzone_px = max(0.0, float(value))
+            elif action == "hotkey":
+                # The tap is bound to one combination, so changing it means
+                # tearing the old one down and installing a new one.
+                if value in KEYCODES:
+                    self.s.hotkey_key = value
+                    self.s.hotkey_enabled = True
+                    self._start_hotkey()
+            elif action == "hotkey_enabled":
+                self.s.hotkey_enabled = bool(value)
+                self._start_hotkey()
             elif action == "language":
                 if value in LANGUAGES:
                     self.s.language = value

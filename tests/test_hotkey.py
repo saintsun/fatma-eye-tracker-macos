@@ -138,3 +138,67 @@ class TestPanicStopsThePointer:
             app._panic.clear()
             app.mouse_on = False
         assert app.mouse_on is False
+
+
+class TestReconfigurableFromThePanel:
+    """The shortcut is bound to one combination, so changing it means
+    tearing the tap down and installing a new one."""
+
+    @pytest.fixture
+    def app(self):
+        pytest.importorskip("cv2")
+        from fatma.app import TrackerApp
+
+        try:
+            app = TrackerApp(Settings(show_preview=False, panel_enabled=False,
+                                      hotkey_enabled=False),
+                             pointer_backend="null")
+        except Exception as exc:                  # pragma: no cover
+            pytest.skip(f"no display/pointer available: {exc}")
+        yield app
+        if app.hotkey is not None:
+            app.hotkey.stop()
+
+    def send(self, app, action, value=None):
+        assert app.bridge.submit(action, value)[0]
+        app._apply_panel_actions()
+
+    def test_changing_the_key_rebinds(self, app):
+        self.send(app, "hotkey", "l")
+        assert app.s.hotkey_key == "l"
+        assert app.s.hotkey_enabled is True
+        if app.hotkey is not None:
+            assert app.hotkey.key == "l"
+
+    def test_an_unknown_key_is_ignored(self, app):
+        before = app.s.hotkey_key
+        self.send(app, "hotkey", "ü")
+        assert app.s.hotkey_key == before
+
+    def test_it_can_be_switched_off_and_on(self, app):
+        self.send(app, "hotkey_enabled", True)
+        assert app.s.hotkey_enabled is True
+        self.send(app, "hotkey_enabled", False)
+        assert app.s.hotkey_enabled is False
+        assert app.hotkey is None
+
+    def test_the_state_describes_the_shortcut(self, app):
+        app._publish_state()
+        state = app.bridge.snapshot()["hotkey"]
+        assert state["key"] == app.s.hotkey_key
+        assert "command" in state["description"]
+        assert set(state["keys"]) == set(KEYCODES)
+        assert isinstance(state["conflicts"], dict)
+
+    def test_escape_is_not_offered(self):
+        """option+command+escape is Force Quit Applications. Shadowing the
+        escape hatch of last resort is a poor trade."""
+        assert "escape" not in KEYCODES
+
+    def test_known_conflicts_are_published(self):
+        from fatma.hotkey import CONFLICTS
+
+        assert set(CONFLICTS) <= set(KEYCODES)
+        # The default is J, which Chrome and Firefox use for the console.
+        # The tap is listen-only so both still happen; the user is told.
+        assert "j" in CONFLICTS

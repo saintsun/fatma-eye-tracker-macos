@@ -299,6 +299,15 @@ button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
     <p class="sub" style="margin:9px 0 0" data-i18n="p.set.grid_sub"></p>
   </div>
   <div class="card">
+    <h2 data-i18n="p.set.hotkey"></h2>
+    <p class="sub" data-i18n="p.set.hotkey_sub"></p>
+    <div class="row"><button class="act" id="bhk">—</button></div>
+    <label class="fld" data-i18n="p.set.hotkey_key"></label>
+    <div class="seg" id="seghk"></div>
+    <div id="hkdetail"></div>
+  </div>
+
+  <div class="card">
     <h2 data-i18n="p.set.app"></h2>
     <div class="row"><button class="act danger" id="bquit" data-i18n="p.set.quit"></button></div>
   </div>
@@ -455,6 +464,19 @@ function render(){
                 [3,T('p.set.sm3')]],sm.index,'smoothing');
   seg('#seggrid',[[9,T('p.set.t9')],[13,T('p.set.t13')]],S.grid,'grid');
 
+  const hk=S.hotkey||{};
+  const bh=$('#bhk');
+  bh.textContent=T(hk.enabled?'p.set.hotkey_on':'p.set.hotkey_off');
+  bh.classList.toggle('on', !!hk.active);
+  seg('#seghk',(hk.keys||[]).map(k=>[k,k==='period'?'.':k.toUpperCase()]),
+      hk.key,'hotkey');
+  const hkrows=[];
+  if(hk.description) hkrows.push([T('p.set.hotkey'), hk.description]);
+  if(hk.enabled && !hk.active) hkrows.push([T('p.error.title'), T('p.set.hotkey_failed')]);
+  const clash=(hk.conflicts||{})[hk.key];
+  if(clash) hkrows.push(['⚠', clash]);
+  kv('#hkdetail', hkrows);
+
   const rd=$('#rdead');
   if(document.activeElement!==rd) rd.value=S.deadzone||0;
   $('#vdead').textContent=(S.deadzone||0)+' px';
@@ -472,6 +494,7 @@ $('#bcalib').onclick=()=>act('calibrate');
 $('#bconfirm').onclick=()=>act('confirm');
 $('#bcancel').onclick=()=>act('cancel');
 $('#bgest').onclick=()=>act('gestures',!S.gestures);
+$('#bhk').onclick=()=>act('hotkey_enabled',!(S.hotkey||{}).enabled);
 $('#bquit').onclick=()=>{ if(confirm(T('p.set.quit_confirm'))) act('quit'); };
 $('#rdead').oninput=e=>$('#vdead').textContent=e.target.value+' px';
 $('#rdead').onchange=e=>act('deadzone',parseFloat(e.target.value));
@@ -540,6 +563,8 @@ class PanelBridge:
         "deadzone": float,
         "gestures": bool,
         "language": str,
+        "hotkey": str,
+        "hotkey_enabled": bool,
         "quit": None,
     }
 

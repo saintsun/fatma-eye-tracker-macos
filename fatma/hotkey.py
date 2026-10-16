@@ -18,10 +18,21 @@ from __future__ import annotations
 import threading
 from typing import Callable
 
-#: Virtual key codes (kVK_ANSI_*). Only the ones we offer.
+#: Virtual key codes (kVK_ANSI_*) for the keys offered. Escape is
+#: deliberately absent: option+command+escape is Force Quit Applications,
+#: and shadowing the escape hatch of last resort is a poor trade.
 KEYCODES = {
-    "j": 38, "k": 40, "l": 37, "h": 4, "g": 5, "f": 3,
-    "escape": 53, "period": 47,
+    "j": 38, "k": 40, "l": 37, "h": 4, "g": 5, "f": 3, "period": 47,
+}
+
+#: Known clashes, shown in the panel. The tap is listen-only, so the key
+#: still reaches the front application: a clash means both things happen,
+#: not that the shortcut fails.
+CONFLICTS = {
+    "j": "Chrome / Firefox: developer console",
+    "k": "Firefox: web console",
+    "h": "macOS: Hide Others",
+    "f": "some apps: full screen",
 }
 
 

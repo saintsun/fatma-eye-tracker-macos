@@ -195,6 +195,12 @@ TEXT: dict[str, dict[str, str]] = {
             "13 targets add the edge midpoints, where the error is largest. "
             "Takes effect on the next calibration."
         ),
+        "p.set.hotkey": "Stop shortcut",
+        "p.set.hotkey_sub": "Stops the pointer from anywhere, even when another application has focus. Clicking a button is the very thing that stops working when the pointer misbehaves.",
+        "p.set.hotkey_on": "Shortcut on",
+        "p.set.hotkey_off": "Shortcut off",
+        "p.set.hotkey_key": "Key (with option + command)",
+        "p.set.hotkey_failed": "Not installed. Grant Accessibility access to this application and switch it off and on again.",
         "p.set.app": "Application",
         "p.set.quit": "Quit Fatma",
         "p.set.quit_confirm": "Quit Fatma?",
@@ -364,6 +370,12 @@ TEXT: dict[str, dict[str, str]] = {
             "13 hedef, kenar ortalarına da nokta koyar — hatanın en büyük "
             "olduğu yer orası. Bir sonraki kalibrasyonda geçerli olur."
         ),
+        "p.set.hotkey": "Durdurma kısayolu",
+        "p.set.hotkey_sub": "İmleci her yerden durdurur, başka bir uygulama öndeyken bile. İmleç kontrolden çıktığında bir düğmeye tıklamak zaten çalışmayan şeydir.",
+        "p.set.hotkey_on": "Kısayol açık",
+        "p.set.hotkey_off": "Kısayol kapalı",
+        "p.set.hotkey_key": "Tuş (option + command ile)",
+        "p.set.hotkey_failed": "Kurulamadı. Bu uygulamaya Erişilebilirlik izni verip kısayolu kapatıp açın.",
         "p.set.app": "Uygulama",
         "p.set.quit": "Fatma'yı kapat",
         "p.set.quit_confirm": "Fatma kapatılsın mı?",
