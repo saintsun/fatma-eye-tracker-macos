@@ -27,6 +27,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .i18n import DEFAULT_LANGUAGE, t
+
 from .tps import TPSFitError, TPSMapping
 
 
@@ -65,17 +67,12 @@ class GazeSpan:
         """Screen pixels per unit of gaze signal, per axis."""
         return gaze_scale((0.0, self.x), (0.0, self.y), screen_w, screen_h)
 
-    def advice(self) -> str:
+    def advice(self, lang: str = DEFAULT_LANGUAGE) -> str:
         """What to tell the user, or an empty string when it is fine."""
         if self.ok:
             return ""
-        return (
-            "Bakis araligi cok dar (yatay %.3f, dikey %.3f; hedef en az "
-            "%.2f / %.2f). Ekrana daha yakin otur ve kalibrasyonda kafani "
-            "degil sadece gozlerini oynat. Dar aralik, landmark gurultusunu "
-            "dogrudan imlec hatasina cevirir." % (
-                self.x, self.y, MIN_GOOD_SPAN_X, MIN_GOOD_SPAN_Y)
-        )
+        return t(lang, "span.narrow", x=self.x, y=self.y,
+                 min_x=MIN_GOOD_SPAN_X, min_y=MIN_GOOD_SPAN_Y)
 
 
 def gaze_span(points_eye) -> GazeSpan:
@@ -112,17 +109,17 @@ class CalibrationQuality:
         diag = math.hypot(screen_w, screen_h) / math.sqrt(2)
         return self.mean * diag, self.worst * diag
 
-    def grade(self) -> str:
-        """A one-word verdict, for the preview overlay."""
+    def grade(self, lang: str = DEFAULT_LANGUAGE) -> str:
+        """A one-word verdict, for the preview overlay and the panel."""
         if not self.valid:
-            return "?"
+            return t(lang, "grade.unknown")
         if self.mean < 0.02:
-            return "çok iyi"
+            return t(lang, "grade.great")
         if self.mean < 0.04:
-            return "iyi"
+            return t(lang, "grade.good")
         if self.mean < 0.08:
-            return "idare eder"
-        return "kötü — yeniden kalibre et"
+            return t(lang, "grade.fair")
+        return t(lang, "grade.poor")
 
 
 def leave_one_out_quality(points_eye, targets) -> CalibrationQuality:

@@ -384,7 +384,7 @@ fit'te geri yükleniyor.
 .venv/bin/python -m pytest
 ```
 
-383 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
+407 test. Saf mantık modüllerinde kapsam %98–100; kapsanmayan kısım kamera ve
 gerçek mouse gerektiren G/Ç.
 
 ```bash

@@ -28,6 +28,7 @@ from .config import (
 )
 from .cursor import CursorController
 from .gestures import Gesture, GestureDetector
+from .i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 from .landmarks import (
     LEFT_BROW_MID,
     LEFT_EYE_BOTTOM,
@@ -88,6 +89,7 @@ def make_target_image(
     step: int = 0,
     total: int = 0,
     ready: bool | None = None,
+    lang: str = DEFAULT_LANGUAGE,
 ):
     """Dark fullscreen canvas with a bullseye at a given screen position.
 
@@ -106,36 +108,92 @@ def make_target_image(
     r = target_size // 2
     cx = min(max(screen_cx, r), screen_w - r)
     cy = min(max(screen_cy - menu_bar_h, r), canvas_h - r)
-    cv2.circle(img, (cx, cy), max(r - 2, 6), YELLOW, 2)
-    cv2.circle(img, (cx, cy), max(r // 2, 4), ORANGE, 1)
+    # The ring itself carries the readiness, because that is the one place
+    # the user is already looking. Reading a hint somewhere else means
+    # moving the eyes off the target at the exact moment they are about to
+    # confirm it, which is what the hint was trying to prevent.
+    ring = GREEN if ready else YELLOW
+    cv2.circle(img, (cx, cy), max(r - 2, 6), ring, 2 if not ready else 3)
+    cv2.circle(img, (cx, cy), max(r // 2, 4), GREEN if ready else ORANGE, 1)
     cv2.circle(img, (cx, cy), 3, RED, -1)
+    if ready:
+        cv2.circle(img, (cx, cy), r + 10, GREEN, 1)
 
     if total:
-        banner = f"{step}/{total}"
-        cv2.putText(img, ascii_fold(banner), (40, 70), cv2.FONT_HERSHEY_SIMPLEX,
-                    1.6, WHITE, 3)
         if ready is None:
-            hint = "Halkaya bak, sonra SPACE'e bas    (ESC = iptal)"
+            hint = f"{t(lang, 'calib.hint')}    ({t(lang, 'calib.cancel')})"
         elif ready:
-            hint = "HAZIR - simdi SPACE'e bas"
+            hint = t(lang, "calib.ready")
         else:
             # Pressing early is the single commonest way to ruin a
             # calibration, so the screen says plainly when not to.
-            hint = "Halkaya bak ve BEKLE - bakisin oturunca HAZIR yazacak"
-        colour = GREEN if ready else WHITE
-        size, _ = cv2.getTextSize(ascii_fold(hint), cv2.FONT_HERSHEY_SIMPLEX,
-                                  0.9, 2)
-        cv2.putText(img, ascii_fold(hint),
-                    ((screen_w - size[0]) // 2, canvas_h - 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, colour, 2)
-        # A moving dot per completed point gives the user proof the window
-        # is live — the failure this replaces looked exactly like a frozen
-        # or missing window.
-        for i in range(total):
-            colour = YELLOW if i < step else (70, 70, 70)
-            cv2.circle(img, (screen_w // 2 - total * 9 + i * 18, 60),
-                       5, colour, -1)
+            hint = t(lang, "calib.wait")
+        _draw_edge_hints(img, hint, GREEN if ready else WHITE,
+                         screen_w, canvas_h, cx, cy, r)
+        _draw_progress(img, step, total, screen_w, canvas_h, cx, cy)
     return img
+
+
+def _draw_progress(img, step, total, screen_w, canvas_h, cx, cy):
+    """Step counter and one dot per target, in the corner furthest away.
+
+    Pinned to a fixed corner it eventually sits under the ring — the
+    targets reach into all four corners by design. The dots matter beyond
+    counting: a window that paints is obviously alive, and the failure this
+    replaced looked exactly like a frozen or missing one.
+    """
+    import cv2
+
+    banner = f"{step}/{total}"
+    (bw, bh), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 1.6, 3)
+    dots_w = total * 18
+    block_w = max(bw, dots_w)
+    margin = 40
+    corners = (
+        (margin, margin + bh),
+        (screen_w - block_w - margin, margin + bh),
+        (margin, canvas_h - margin - 26),
+        (screen_w - block_w - margin, canvas_h - margin - 26),
+    )
+    x, y = max(corners, key=lambda c: (c[0] + block_w / 2 - cx) ** 2
+               + (c[1] - bh / 2 - cy) ** 2)
+    cv2.putText(img, ascii_fold(banner), (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                1.6, WHITE, 3)
+    for i in range(total):
+        colour = YELLOW if i < step else (70, 70, 70)
+        cv2.circle(img, (x + 8 + i * 18, y + 22), 5, colour, -1)
+
+
+def _draw_edge_hints(img, hint, colour, screen_w, canvas_h, cx, cy, r):
+    """Repeat the hint on all four edges, skipping any the target covers.
+
+    A single hint at the bottom is useless when the ring is at the top: the
+    user has to look away from the target to read it. Repeating it on every
+    edge means one copy is always in peripheral vision, wherever the ring
+    happens to be, and none of them is worth looking directly at.
+    """
+    import cv2
+
+    text = ascii_fold(hint)
+    scale, thickness = 0.8, 2
+    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX,
+                                  scale, thickness)
+    margin = 46
+    placements = (
+        ((screen_w - tw) // 2, margin + th),                  # top
+        ((screen_w - tw) // 2, canvas_h - margin),            # bottom
+        (margin, (canvas_h + th) // 2),                       # left
+        (screen_w - tw - margin, (canvas_h + th) // 2),       # right
+    )
+    # Clearance that keeps a hint from colliding with the ring it describes.
+    keep_out = r + th + 28
+    for x, y in placements:
+        box_cx, box_cy = x + tw / 2, y - th / 2
+        if (abs(box_cx - cx) < tw / 2 + keep_out
+                and abs(box_cy - cy) < th / 2 + keep_out):
+            continue
+        cv2.putText(img, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                    scale, colour, thickness)
 
 
 class StageTimer:
@@ -334,37 +392,67 @@ class TrackerApp:
         # Jitter is how far the cursor wanders while the gaze is held, in
         # pixels; the "best" figure is the quietest fixation seen so far,
         # which is the noise floor this setup can reach.
+        lang = self.s.language
         jitter = (
-            f"Jitter: {self.jitter.rms:5.0f} px"
-            + (f" (en iyi {self.jitter.best:.0f})"
+            f"{t(lang, 'hud.jitter')}: {self.jitter.rms:5.0f} px"
+            + (f" ({t(lang, 'hud.best')} {self.jitter.best:.0f})"
                if self.jitter.best is not None else "")
-            + ("  [sabit bakış]" if self.jitter.is_fixating else "")
+            + (f"  [{t(lang, 'hud.holding')}]" if self.jitter.is_fixating else "")
         )
         quality = self.calibrator.quality
         if quality is not None and quality.valid:
             mean_px, worst_px = quality.in_pixels(self.screen_w, self.screen_h)
-            calib = (f"Kalibrasyon: {quality.grade()} "
-                     f"(ort {mean_px:.0f} px, en kötü {worst_px:.0f} px)")
+            calib = (f"{t(lang, 'hud.calib')}: {quality.grade(lang)} "
+                     f"({t(lang, 'hud.calib_mean')} {mean_px:.0f} px, "
+                     f"{t(lang, 'hud.calib_worst')} {worst_px:.0f} px)")
         else:
-            calib = (f"Kalibrasyon: "
-                     f"{'var' if self.calibrator.is_calibrated else 'YOK'} (c)")
+            calib = (f"{t(lang, 'hud.calib')}: "
+                     f"{'ok' if self.calibrator.is_calibrated else t(lang, 'hud.calib_none')} (c)")
+        on, off = t(lang, "hud.on"), t(lang, "hud.off")
         lines = [
             f"{fps:.0f} fps | {self.cam_w}x{self.cam_h} | "
             f"pointer: {getattr(self.pointer, 'name', '?')}",
             jitter,
             calib,
-            f"Mouse: {'ON' if self.mouse_on else 'OFF'} (m)",
-            f"Filter: cutoff={mc} beta={beta} (s)",
-            f"Drift: dx={self.cursor.drift_dx:+.0f} "
-            f"dy={self.cursor.drift_dy:+.0f} (a=anchor, A=reset)",
+            f"{t(lang, 'hud.mouse')}: {on if self.mouse_on else off} (m)",
+            f"{t(lang, 'hud.filter')}: cutoff={mc} beta={beta} (s)",
+            f"{t(lang, 'hud.drift')}: dx={self.cursor.drift_dx:+.0f} "
+            f"dy={self.cursor.drift_dy:+.0f} (a/A)",
             f"EAR {ear_str} | Brow {brow_str}",
-            f"Eye: {self.s.dominant_eye}/{self.s.eye_reference}",
+            f"{t(lang, 'hud.eye')}: {self.s.dominant_eye}/{self.s.eye_reference}",
         ]
+        self._draw_status_block(frame, lines)
+
+    @staticmethod
+    def _draw_status_block(frame, lines) -> None:
+        """Draw the readout bottom-left: black on a solid yellow block.
+
+        Nothing adaptive, because nothing needs to be. The camera sees
+        whatever is behind the user — a wall, a window, a dark shirt can
+        all pass under the same line within a second — and any text drawn
+        straight onto that is readable only some of the time. Covering the
+        area outright removes the problem, and that corner of the preview
+        shows the user's shoulder, not anything worth seeing.
+
+        Black on yellow is the pairing road signs and warning labels use:
+        the highest practical contrast after black on white, and it stays
+        legible at small sizes and off-angle.
+        """
+        import cv2
+
+        h, w = frame.shape[:2]
+        scale, step, pad = 0.5, 19, 8
+        widths = [cv2.getTextSize(ascii_fold(line), cv2.FONT_HERSHEY_SIMPLEX,
+                                  scale, 1)[0][0] for line in lines]
+        block_w = min(max(widths) + pad * 2, w)
+        block_h = step * len(lines) + pad
+        top = max(0, h - block_h)
+        cv2.rectangle(frame, (0, top), (block_w, h), YELLOW, -1)
         for i, line in enumerate(lines):
-            y = h - 10 - 20 * (len(lines) - 1 - i)
-            cv2.putText(frame, ascii_fold(line), (10, y),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, WHITE, 1)
+            y = top + pad + step * i + 9
+            cv2.putText(frame, ascii_fold(line), (pad, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), 1,
+                        cv2.LINE_AA)
 
     @staticmethod
     def _mark_eye(frame, landmarks, top_idx, bottom_idx) -> None:
@@ -434,6 +522,7 @@ class TrackerApp:
                     step=self.calibrator.idx,
                     total=self.calibrator.total_points,
                     ready=ready,
+                    lang=self.s.language,
                 )
                 self._last_calib_ready = ready
                 if self.calibrator.idx != self._last_calib_idx:
@@ -749,10 +838,11 @@ class TrackerApp:
         q = self.calibrator.quality
         quality = None
         if q is not None and q.valid:
+            quality_grade = q.grade(self.s.language)
             mean_px, worst_px = q.in_pixels(self.screen_w, self.screen_h)
             quality = {
                 "mean_px": mean_px, "worst_px": worst_px,
-                "grade": q.grade(), "worst_index": q.worst_index,
+                "grade": quality_grade, "worst_index": q.worst_index,
                 "points": len(q.per_point),
             }
         span = self.calibrator.span
@@ -769,7 +859,7 @@ class TrackerApp:
             "calibrated": self.calibrator.is_calibrated,
             "quality": quality,
             "span": ({"x": span.x, "y": span.y, "ok": span.ok,
-                      "advice": span.advice()}
+                      "advice": span.advice(self.s.language)}
                      if span is not None else None),
             "fps": self.fps if self._tracking else 0.0,
             "jitter": {
@@ -789,6 +879,7 @@ class TrackerApp:
             "deadzone": self.s.deadzone_px,
             "grid": self.s.calib_grid,
             "gestures": self.s.gestures_enabled,
+            "lang": self.s.language,
             "drift": [self.cursor.drift_dx, self.cursor.drift_dy],
             "face": self._face_seen and self._tracking,
         })
@@ -846,6 +937,9 @@ class TrackerApp:
                         self.cursor.calibrator = self.calibrator
             elif action == "deadzone":
                 self.s.deadzone_px = max(0.0, float(value))
+            elif action == "language":
+                if value in LANGUAGES:
+                    self.s.language = value
             elif action == "gestures":
                 self.s.gestures_enabled = bool(value)
             elif action == "quit":
@@ -983,6 +1077,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--panel-port", type=int, metavar="PORT",
                    help="port for the control panel (default: first free "
                         "from 8766)")
+    p.add_argument("--lang", choices=LANGUAGES, default="en",
+                   help="interface language for the overlay and the panel "
+                        "(default: en)")
     p.add_argument("--track", action="store_true",
                    help="open the camera straight away instead of waiting "
                         "for the panel to ask")
@@ -1014,6 +1111,7 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         brow_enabled=args.brow,
         threaded_capture=not args.no_threaded_capture,
         panel_enabled=not args.no_panel,
+        language=args.lang,
     )
     if args.panel_port:
         kwargs["panel_port"] = args.panel_port

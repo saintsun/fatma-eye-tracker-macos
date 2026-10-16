@@ -34,6 +34,7 @@ SMOOTHING_LEVELS: tuple[tuple[float, float], ...] = (
 VALID_EYES = ("auto", "left", "right", "both")
 VALID_REFERENCES = ("anchors", "corners")
 VALID_GRIDS = (9, 13)
+VALID_LANGUAGES = ("en", "tr")
 VALID_CALIB_WINDOWS = ("fullscreen", "normal")
 
 
@@ -113,6 +114,8 @@ class Settings:
     calibration_path: str = DEFAULT_CALIB_PATH
 
     # --- ui ------------------------------------------------------------
+    #: Applies to the camera overlay and the browser panel alike.
+    language: str = "en"
     show_preview: bool = True
     #: The preview frame is scaled to this width before the overlay is
     #: drawn, which is what actually determines the window size.
@@ -157,6 +160,11 @@ class Settings:
             raise ValueError("max_eye_disagreement must be positive")
         if self.panel_port is not None and not (1024 <= self.panel_port <= 65535):
             raise ValueError("panel_port must be between 1024 and 65535")
+        if self.language not in VALID_LANGUAGES:
+            raise ValueError(
+                f"language must be one of {VALID_LANGUAGES}, "
+                f"got {self.language!r}"
+            )
         if self.calib_window not in VALID_CALIB_WINDOWS:
             raise ValueError(
                 f"calib_window must be one of {VALID_CALIB_WINDOWS}, "

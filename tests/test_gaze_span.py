@@ -36,7 +36,8 @@ class TestGazeSpan:
 
     def test_the_measured_bad_session_is_flagged(self):
         assert not MEASURED_BAD.ok
-        assert "yakin otur" in MEASURED_BAD.advice()
+        assert "Sit closer" in MEASURED_BAD.advice()
+        assert "yakin otur" in MEASURED_BAD.advice("tr")
 
     def test_the_measured_good_session_passes(self):
         assert MEASURED_GOOD.ok

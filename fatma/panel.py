@@ -18,11 +18,13 @@ import threading
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from .i18n import DEFAULT_LANGUAGE, LANGUAGES, TEXT
+
 DEFAULT_PORT = 8766
 #: Ports tried in order, so a second instance does not simply fail.
 PORT_RANGE = tuple(range(DEFAULT_PORT, DEFAULT_PORT + 8))
 
-PAGE = """<!doctype html><html lang="tr"><head><meta charset="utf-8">
+PAGE_TEMPLATE = """<!doctype html><html lang="__LANG__"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Fatma: Eye Tracker</title><style>
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
@@ -67,6 +69,8 @@ button{min-width:0}
 .tabs button:hover{color:var(--fg);background:rgba(255,255,255,.05)}
 .tabs button.on{background:#fff;color:#0a0d16;font-weight:650;
   box-shadow:0 0 20px rgba(255,255,255,.22)}
+.navsel{flex:0 0 auto;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:999px;color:var(--fg);padding:6px 9px;font-size:12px;font-family:inherit;cursor:pointer}
+.navsel:focus{outline:none;border-color:rgba(0,229,255,.55)}
 .navst{flex:0 0 auto;font-size:15px;line-height:1;min-width:24px;text-align:center}
 /* A pill that wraps becomes a tall blob: below this width the brand and the
    state keep the top row and the tabs drop to a full-width row of their own,
@@ -182,10 +186,11 @@ button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
 <div class="nav">
   <div class="brand"><span class="nm">Fatma</span><span class="ver" id="ver">—</span></div>
   <div class="tabs">
-    <button data-t="kontrol" class="on">Kontrol</button>
-    <button data-t="hassasiyet">Hassasiyet</button>
-    <button data-t="ayarlar">Ayarlar</button>
+    <button data-t="kontrol" class="on" data-i18n="p.tab.control"></button>
+    <button data-t="hassasiyet" data-i18n="p.tab.precision"></button>
+    <button data-t="ayarlar" data-i18n="p.tab.settings"></button>
   </div>
+  <select class="navsel" id="lang"><option value="en">EN</option><option value="tr">TR</option></select>
   <div class="navst" id="navst">⚪️</div>
 </div>
 
@@ -200,33 +205,33 @@ button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
         <b id="statetitle">—</b>
         <span id="statesub"></span>
       </div>
-      <button class="power" id="bpower">Takibi başlat</button>
+      <button class="power" id="bpower" data-i18n="p.power.start"></button>
     </div>
   </div>
 
   <div class="card needs-tracking">
-    <h2>İmleç</h2>
-    <p class="sub" id="mousesub">Gözlerin imleci sürsün mü.</p>
+    <h2 data-i18n="p.pointer.title"></h2>
+    <p class="sub" id="mousesub" data-i18n="p.pointer.sub_free"></p>
     <div class="row">
-      <button class="act big" id="bmouse">İmleci aç</button>
-      <button class="act" id="banchor">Ortaya bak, çıpala</button>
-      <button class="act" id="bdrift">Çıpayı sıfırla</button>
+      <button class="act big" id="bmouse" data-i18n="p.pointer.on"></button>
+      <button class="act" id="banchor" data-i18n="p.pointer.anchor"></button>
+      <button class="act" id="bdrift" data-i18n="p.pointer.reset"></button>
     </div>
   </div>
 
   <div class="card needs-tracking">
-    <h2>Kalibrasyon</h2>
+    <h2 data-i18n="p.calib.title"></h2>
     <p class="sub" id="calibsub">—</p>
     <div class="row">
-      <button class="act big" id="bcalib">Kalibrasyonu başlat</button>
-      <button class="act" id="bconfirm" disabled>Bu noktayı onayla</button>
-      <button class="act danger" id="bcancel" disabled>İptal</button>
+      <button class="act big" id="bcalib" data-i18n="p.calib.start"></button>
+      <button class="act" id="bconfirm" disabled data-i18n="p.calib.confirm"></button>
+      <button class="act danger" id="bcancel" disabled data-i18n="p.calib.cancel"></button>
     </div>
     <div class="bar"><i id="calibbar" style="width:0%"></i></div>
   </div>
 
   <div class="card needs-tracking">
-    <h2>Durum</h2>
+    <h2 data-i18n="p.status.title"></h2>
     <div id="status"></div>
   </div>
 </section>
@@ -234,37 +239,28 @@ button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
 <section data-p="hassasiyet" hidden>
   <div class="g2">
     <div class="card">
-      <h2>Kalibrasyon doğruluğu</h2>
-      <p class="sub">Çapraz doğrulama: her hedef sırayla dışarıda bırakılıp
-        tahmin ediliyor. Hedefler <em>arasındaki</em> davranışın dürüst
-        tahmini.</p>
+      <h2 data-i18n="p.acc.title"></h2>
+      <p class="sub" data-i18n="p.acc.sub"></p>
       <div class="big" id="qmean">—</div>
       <div id="qdetail"></div>
     </div>
     <div class="card">
-      <h2>Jitter</h2>
-      <p class="sub">Bakışın sabitken imlecin ne kadar gezindiği. "En iyi"
-        gördüğün en sessiz sabitleme — bu kurulumun gürültü tabanı.</p>
+      <h2 data-i18n="p.jitter.title"></h2>
+      <p class="sub" data-i18n="p.jitter.sub"></p>
       <div class="big" id="jrms">—</div>
       <div id="jdetail"></div>
     </div>
   </div>
   <div class="card">
-    <h2>Bakış aralığı</h2>
-    <p class="sub">Gözlerin tüm ekranı taramak için ne kadar yol kat etti,
-      iris çapı cinsinden. Kalibrasyonun en önemli sayısı ve artıklarda hiç
-      görünmüyor: dar bir aralık, her landmark pikselini yüzlerce ekran
-      pikseline çevirir. Çoğunlukla ekrana olan uzaklığın belirler.</p>
+    <h2 data-i18n="p.span.title"></h2>
+    <p class="sub" data-i18n="p.span.sub"></p>
     <div class="big" id="spanv">—</div>
     <div id="spandetail"></div>
   </div>
 
   <div class="card">
-    <h2>Neyi değiştirmeli</h2>
-    <p class="sub">Doğruluk skoru kötüyse yeniden kalibre et — sorun
-      haritada. Jitter yüksekse çözünürlük ve ortalama — sorun gürültüde.
-      Bakış sinyali tüm ekran boyunca yarım iris çapından az yol kat ediyor,
-      o yüzden 1 piksellik landmark hatası yüzlerce ekran pikseli ediyor.</p>
+    <h2 data-i18n="p.advice.title"></h2>
+    <p class="sub" data-i18n="p.advice.sub"></p>
     <div id="advice"></div>
   </div>
 </section>
@@ -272,48 +268,50 @@ button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
 <section data-p="ayarlar" hidden>
   <div class="g2">
     <div class="card">
-      <h2>Takip</h2>
-      <label class="fld">Hangi göz</label>
+      <h2 data-i18n="p.set.tracking"></h2>
+      <label class="fld" data-i18n="p.set.which_eye"></label>
       <div class="seg" id="segeye"></div>
-      <p class="sub" style="margin:7px 0 0">auto: iki göz uyuştuğu sürece
-        ortalar (√2 daha az gürültü), ayrıştıklarında tek göze düşer.</p>
-      <label class="fld">Referans noktaları</label>
+      <p class="sub" style="margin:7px 0 0" data-i18n="p.set.eye_sub"></p>
+      <label class="fld" data-i18n="p.set.reference"></label>
       <div class="seg" id="segref"></div>
-      <p class="sub" style="margin:7px 0 0">anchors: altı landmark, iki göz
-        köşesinden daha sessiz.</p>
+      <p class="sub" style="margin:7px 0 0" data-i18n="p.set.ref_sub"></p>
     </div>
     <div class="card">
-      <h2>İmleç davranışı</h2>
-      <label class="fld">Yumuşatma</label>
+      <h2 data-i18n="p.set.cursor"></h2>
+      <label class="fld" data-i18n="p.set.smoothing"></label>
       <div class="seg" id="segsm"></div>
-      <label class="fld">Ölü bölge (titreme eşiği)</label>
+      <label class="fld" data-i18n="p.set.deadzone"></label>
       <div class="rng">
         <input type="range" id="rdead" min="0" max="40" step="1">
         <span class="vv" id="vdead">—</span>
       </div>
-      <label class="fld">Jestler</label>
+      <label class="fld" data-i18n="p.set.gestures"></label>
       <div class="row">
         <button class="act" id="bgest">—</button>
       </div>
-      <p class="sub" style="margin:9px 0 0">Sol kırpma tık, sağ kırpma sağ
-        tık, iki kaş çift tık.</p>
+      <p class="sub" style="margin:9px 0 0" data-i18n="p.set.gest_sub"></p>
     </div>
   </div>
   <div class="card">
-    <h2>Sonraki kalibrasyon</h2>
-    <label class="fld">Hedef sayısı</label>
+    <h2 data-i18n="p.set.nextcal"></h2>
+    <label class="fld" data-i18n="p.set.targets"></label>
     <div class="seg" id="seggrid"></div>
-    <p class="sub" style="margin:9px 0 0">13 hedef, kenar ortalarına da nokta
-      koyar — hatanın en büyük olduğu yer orası. Değişiklik bir sonraki
-      kalibrasyonda geçerli olur.</p>
+    <p class="sub" style="margin:9px 0 0" data-i18n="p.set.grid_sub"></p>
   </div>
   <div class="card">
-    <h2>Uygulama</h2>
-    <div class="row"><button class="act danger" id="bquit">Fatma'yı kapat</button></div>
+    <h2 data-i18n="p.set.app"></h2>
+    <div class="row"><button class="act danger" id="bquit" data-i18n="p.set.quit"></button></div>
   </div>
 </section>
 
 <script>
+const STR=__STRINGS__;
+let LANG='__LANG__';
+const T=(k,f)=>{let v=(STR[LANG]&&STR[LANG][k])||STR.en[k]||k;
+  if(f) for(const n in f) v=v.replaceAll('{'+n+'}',f[n]);
+  return v.replace(/[{][^}]*[}]/g,'');};
+function applyStatic(){document.querySelectorAll('[data-i18n]')
+  .forEach(e=>e.textContent=T(e.dataset.i18n));}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let S={}, busy=false;
 
@@ -331,9 +329,9 @@ async function act(action,value){
       body:JSON.stringify({action,value})});
     const j=await r.json();
     if(j.ok){ if(j.message) toast(j.message,'ok'); }
-    else toast(j.error||'olmadı','err');
+    else toast(j.error||T('p.toast.failed'),'err');
     await poll();
-  }catch(e){ toast('bağlantı koptu','err'); }
+  }catch(e){ toast(T('p.toast.offline'),'err'); }
   finally{ busy=false; }
 }
 $$('.tabs button').forEach(b=>b.onclick=()=>{
@@ -368,38 +366,35 @@ function render(){
 
   const eb=$('#errbox');
   if(S.error){ eb.hidden=false;
-    eb.innerHTML='<b>Başlatılamadı</b>'+String(S.error)
+    eb.innerHTML='<b>'+T('p.error.title')+'</b>'+String(S.error)
       .replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
   else eb.hidden=true;
 
   const bp=$('#bpower');
-  bp.textContent = tr ? 'Takibi durdur' : 'Takibi başlat';
+  bp.textContent = T(tr?'p.power.stop':'p.power.start');
   bp.classList.toggle('stop', tr);
-  $('#statetitle').textContent = tr
-    ? (S.calibrating ? 'Kalibrasyon sürüyor' : 'Takip çalışıyor')
-    : 'Takip kapalı';
-  $('#statesub').textContent = tr
-    ? (S.face ? 'Kamera açık, yüz görünüyor.' : 'Kamera açık, yüz aranıyor.')
-    : 'Kamera kapalı. Başlatınca macOS kamera izni isteyebilir.';
+  $('#statetitle').textContent = T(tr
+    ? (S.calibrating?'p.state.calibrating':'p.state.on') : 'p.state.off');
+  $('#statesub').textContent = T(tr
+    ? (S.face?'p.state.face':'p.state.noface') : 'p.state.off_sub');
 
   const cam=(S.camera||[0,0]).join('×'), scr=(S.screen||[0,0]).join('×');
   const lowres = tr && (S.camera||[0])[0] < 1280;
   $('#chips').innerHTML=[
     `<span class="chip"><b>${tr?(S.fps||0).toFixed(0):'—'}</b> fps</span>`,
-    `<span class="chip ${lowres?'warn':''}">kamera <b>${tr?cam:'—'}</b></span>`,
-    `<span class="chip">ekran <b>${scr}</b></span>`,
-    `<span class="chip">pointer <b>${S.pointer||'?'}</b></span>`,
-    `<span class="chip ${S.face?'ok':(tr?'warn':'')}">${tr?(S.face?'yüz görünüyor':'yüz yok'):'kamera kapalı'}</span>`,
-    `<span class="chip ${S.calibrated?'ok':'err'}">${S.calibrated?'kalibre':'kalibre değil'}</span>`,
+    `<span class="chip ${lowres?'warn':''}">${T('p.chip.camera')} <b>${tr?cam:'—'}</b></span>`,
+    `<span class="chip">${T('p.chip.screen')} <b>${scr}</b></span>`,
+    `<span class="chip">${T('p.chip.pointer')} <b>${S.pointer||'?'}</b></span>`,
+    `<span class="chip ${S.face?'ok':(tr?'warn':'')}">${T(tr?(S.face?'p.chip.face_yes':'p.chip.face_no'):'p.chip.camera_off')}</span>`,
+    `<span class="chip ${S.calibrated?'ok':'err'}">${T(S.calibrated?'p.chip.calibrated':'p.chip.uncalibrated')}</span>`,
   ].join('');
 
   const bm=$('#bmouse');
-  bm.textContent = S.mouse_on ? 'İmleci durdur' : 'İmleci aç';
+  bm.textContent = T(S.mouse_on?'p.pointer.off':'p.pointer.on');
   bm.classList.toggle('on', !!S.mouse_on);
   bm.disabled = !tr || (!S.calibrated && !S.mouse_on);
-  $('#mousesub').textContent = !S.calibrated
-    ? 'Önce kalibre et — kalibrasyon olmadan imleç anlamlı bir yere gitmez.'
-    : S.mouse_on ? 'İmleç gözlerini takip ediyor.' : 'İmleç şu an serbest.';
+  $('#mousesub').textContent = T(!S.calibrated ? 'p.pointer.sub_needcal'
+    : S.mouse_on ? 'p.pointer.sub_tracking' : 'p.pointer.sub_free');
   $('#banchor').disabled = !tr || !S.calibrated;
   $('#bdrift').disabled = !tr || !S.calibrated;
 
@@ -407,61 +402,64 @@ function render(){
   $('#bcalib').disabled=c||!tr; $('#bconfirm').disabled=!c; $('#bcancel').disabled=!c;
   $('#calibbar').style.width = c ? (100*S.calib_step/S.calib_total)+'%' : '0%';
   $('#calibsub').textContent = c
-    ? `${S.calib_step+1}/${S.calib_total} — halkaya bak, sonra onayla (ya da SPACE)`
-    : S.calibrated ? 'Kalibre edilmiş. Kamera açısı ya da oturuşun değiştiyse yenile.'
-    : 'Henüz kalibre edilmedi. 13 halkaya sırayla bak.';
+    ? T('p.calib.running',{step:S.calib_step+1,total:S.calib_total})
+    : T(S.calibrated?'p.calib.done':'p.calib.none');
 
+  const onoff=v=>T(v?'hud.on':'hud.off').toLowerCase();
   kv('#status',[
-    ['İmleç', S.mouse_on?'açık':'kapalı'],
-    ['Sürüklenme', `dx=${(S.drift||[0,0])[0].toFixed(0)} dy=${(S.drift||[0,0])[1].toFixed(0)}`],
-    ['Göz / referans', `${S.eye||'?'} / ${S.reference||'?'}`],
-    ['Yumuşatma', `${(S.smoothing||{}).index+1}/${(S.smoothing||{}).total} (cutoff ${(S.smoothing||{}).cutoff})`],
-    ['Ölü bölge', (S.deadzone||0)+' px'],
-    ['Jestler', S.gestures?'açık':'kapalı'],
+    [T('p.status.pointer'), onoff(S.mouse_on)],
+    [T('p.status.drift'), `dx=${(S.drift||[0,0])[0].toFixed(0)} dy=${(S.drift||[0,0])[1].toFixed(0)}`],
+    [T('p.status.eye'), `${S.eye||'?'} / ${S.reference||'?'}`],
+    [T('p.status.smoothing'), `${(S.smoothing||{}).index+1}/${(S.smoothing||{}).total} (cutoff ${(S.smoothing||{}).cutoff})`],
+    [T('p.status.deadzone'), (S.deadzone||0)+' px'],
+    [T('p.status.gestures'), onoff(S.gestures)],
   ]);
 
   const q=S.quality;
   $('#qmean').innerHTML = q
-    ? `${q.mean_px.toFixed(0)} <small>px ortalama · ${q.grade}</small>`
-    : '— <small>henüz kalibre edilmedi</small>';
+    ? `${q.mean_px.toFixed(0)} <small>${T('p.acc.mean')} · ${q.grade}</small>`
+    : `— <small>${T('p.acc.none')}</small>`;
   kv('#qdetail', q
-    ? [['En kötü hedef', `${q.worst_px.toFixed(0)} px (nokta ${q.worst_index+1})`],
-       ['Hedef sayısı', q.points]]
-    : [['Durum','Kalibrasyon yapınca burada çıkar']]);
+    ? [[T('p.acc.worst'), `${q.worst_px.toFixed(0)} px (#${q.worst_index+1})`],
+       [T('p.acc.points'), q.points]]
+    : [[T('p.span.state'), T('p.acc.pending')]]);
 
   const j=S.jitter||{};
   $('#jrms').innerHTML = j.rms!=null
-    ? `${j.rms.toFixed(0)} <small>px${j.fixating?' · sabit bakış':''}</small>`
+    ? `${j.rms.toFixed(0)} <small>px${j.fixating?' · '+T('p.jitter.holding'):''}</small>`
     : '—';
-  kv('#jdetail',[['En iyi (gürültü tabanı)', j.best!=null?j.best.toFixed(0)+' px':'—']]);
+  kv('#jdetail',[[T('p.jitter.best'), j.best!=null?j.best.toFixed(0)+' px':'—']]);
 
   const sp=S.span;
   $('#spanv').innerHTML = sp
-    ? `${sp.x.toFixed(3)} / ${sp.y.toFixed(3)} <small>yatay / dikey${sp.ok?'':' · ÇOK DAR'}</small>`
-    : '— <small>henüz kalibre edilmedi</small>';
+    ? `${sp.x.toFixed(3)} / ${sp.y.toFixed(3)} <small>${T('p.span.axes')}${sp.ok?'':' · '+T('p.span.narrow')}</small>`
+    : `— <small>${T('p.acc.none')}</small>`;
   kv('#spandetail', sp
-    ? (sp.ok ? [['Durum','Yeterli']] : [['Durum','Dar — ekrana yaklaş'],['Ne yapmalı',sp.advice]])
-    : [['Durum','Kalibrasyon yapınca burada çıkar']]);
+    ? (sp.ok ? [[T('p.span.state'),T('p.span.ok')]]
+             : [[T('p.span.state'),T('p.span.bad')],[T('p.span.what'),sp.advice]])
+    : [[T('p.span.state'), T('p.acc.pending')]]);
 
   const tips=[];
-  if(lowres) tips.push(['Kamera 1280 altında','Hassasiyet doğrudan çözünürlüğe bağlı. --width 1280 ile başlat.']);
-  if(sp && !sp.ok) tips.push(['Bakış aralığı dar','Ekrana daha yakın otur. Doğruluğu en çok bu belirliyor.']);
-  if(q && q.mean_px>120) tips.push(['Kalibrasyon zayıf','Yeniden kalibre et: her halkaya tam bak, kafanı oynatma.']);
-  if(j.best!=null && j.best>60) tips.push(['Jitter yüksek','Yumuşatmayı artır ya da ölü bölgeyi büyüt.']);
-  if(S.eye && S.eye!=='auto') tips.push(['Tek göz kullanılıyor','auto moda geçmek gürültüyü √2 azaltır.']);
-  kv('#advice', tips.length?tips:[['Her şey yolunda','Ayarlar hassasiyet için uygun.']]);
+  if(lowres) tips.push([T('p.advice.lowres'),T('p.advice.lowres_sub')]);
+  if(sp && !sp.ok) tips.push([T('p.advice.span'),T('p.advice.span_sub')]);
+  if(q && q.mean_px>120) tips.push([T('p.advice.calib'),T('p.advice.calib_sub')]);
+  if(j.best!=null && j.best>60) tips.push([T('p.advice.jitter'),T('p.advice.jitter_sub')]);
+  if(S.eye && S.eye!=='auto') tips.push([T('p.advice.oneeye'),T('p.advice.oneeye_sub')]);
+  kv('#advice', tips.length?tips:[[T('p.advice.ok'),T('p.advice.ok_sub')]]);
 
-  seg('#segeye',[['auto','auto'],['left','sol'],['right','sağ'],['both','ikisi']],S.eye,'eye');
+  seg('#segeye',[['auto',T('p.set.eye_auto')],['left',T('p.set.eye_left')],
+                 ['right',T('p.set.eye_right')],['both',T('p.set.eye_both')]],S.eye,'eye');
   seg('#segref',[['anchors','anchors (6)'],['corners','corners (2)']],S.reference,'reference');
   const sm=S.smoothing||{index:0,total:4};
-  seg('#segsm',[[0,'hızlı'],[1,'normal'],[2,'yumuşak'],[3,'maks']],sm.index,'smoothing');
-  seg('#seggrid',[[9,'9 hedef'],[13,'13 hedef']],S.grid,'grid');
+  seg('#segsm',[[0,T('p.set.sm0')],[1,T('p.set.sm1')],[2,T('p.set.sm2')],
+                [3,T('p.set.sm3')]],sm.index,'smoothing');
+  seg('#seggrid',[[9,T('p.set.t9')],[13,T('p.set.t13')]],S.grid,'grid');
 
   const rd=$('#rdead');
   if(document.activeElement!==rd) rd.value=S.deadzone||0;
   $('#vdead').textContent=(S.deadzone||0)+' px';
   const bg=$('#bgest');
-  bg.textContent=S.gestures?'Jestler açık':'Jestler kapalı';
+  bg.textContent=T(S.gestures?'p.set.gest_on':'p.set.gest_off');
   bg.classList.toggle('on',!!S.gestures);
   document.body.classList.toggle('off', !S.running);
 }
@@ -474,18 +472,47 @@ $('#bcalib').onclick=()=>act('calibrate');
 $('#bconfirm').onclick=()=>act('confirm');
 $('#bcancel').onclick=()=>act('cancel');
 $('#bgest').onclick=()=>act('gestures',!S.gestures);
-$('#bquit').onclick=()=>{ if(confirm('Fatma kapatılsın mı?')) act('quit'); };
+$('#bquit').onclick=()=>{ if(confirm(T('p.set.quit_confirm'))) act('quit'); };
 $('#rdead').oninput=e=>$('#vdead').textContent=e.target.value+' px';
 $('#rdead').onchange=e=>act('deadzone',parseFloat(e.target.value));
 
 async function poll(){
   try{
     const r=await fetch('/api/state');
-    S=await r.json(); $('#bpower').disabled=false; render();
+    S=await r.json(); $('#bpower').disabled=false;
+    if(S.lang && S.lang!==LANG){LANG=S.lang;$('#lang').value=LANG;
+      document.documentElement.lang=LANG;applyStatic();}
+    render();
   }catch(e){ $('#navst').textContent='⚪️'; }
 }
+$('#lang').onchange=e=>{LANG=e.target.value;
+  document.documentElement.lang=LANG;applyStatic();render();
+  act('language',LANG);};
+applyStatic();
 poll(); setInterval(poll,700);
 </script></body></html>"""
+
+
+def render_page(lang: str = DEFAULT_LANGUAGE) -> str:
+    """Fill the page template with the string table and the initial language.
+
+    The whole table goes to the browser, so switching language is instant
+    and needs no round trip — and there is exactly one place the wording
+    lives, shared with the overlay drawn on the camera frames.
+    """
+    if lang not in LANGUAGES:
+        lang = DEFAULT_LANGUAGE
+    # The lang attribute is not decoration: CSS text-transform follows the
+    # document language, and Turkish uppercases "i" to "I with a dot". An
+    # English page left marked Turkish renders "POINTER" as "POINTER" with
+    # a dotted I.
+    return (PAGE_TEMPLATE
+            .replace("__STRINGS__", json.dumps(TEXT, ensure_ascii=False))
+            .replace("__LANG__", lang))
+
+
+#: Kept for tests and for anything that just wants the default rendering.
+PAGE = render_page()
 
 
 class PanelBridge:
@@ -512,6 +539,7 @@ class PanelBridge:
         "grid": int,
         "deadzone": float,
         "gestures": bool,
+        "language": str,
         "quit": None,
     }
 
@@ -597,7 +625,9 @@ def make_handler(bridge: PanelBridge):
                 self._json(bridge.snapshot())
                 return
             if self.path in ("/", "/index.html"):
-                self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
+                lang = bridge.snapshot().get("lang", DEFAULT_LANGUAGE)
+                self._send(render_page(lang).encode("utf-8"),
+                           "text/html; charset=utf-8")
                 return
             self._json({"error": "not found"}, 404)
 
