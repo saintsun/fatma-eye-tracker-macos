@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Fatma's icon: a nazar boncuğu.
+
+    It is already an eye, which is the whole application; it is a charm
+    against harm, which suits a tool someone leans on; and its concentric
+    rings survive being shrunk to 16 pixels, where anything with a
+    silhouette turns to mush.
+
+    The pupil sits slightly up and to the right rather than dead centre,
+    so the eye reads as looking at something.
+  -->
+  <defs>
+    <radialGradient id="deep" cx="38%" cy="32%" r="78%">
+      <stop offset="0%" stop-color="#2f5fd0"/>
+      <stop offset="62%" stop-color="#17379b"/>
+      <stop offset="100%" stop-color="#0a1c5e"/>
+    </radialGradient>
+    <radialGradient id="mid" cx="40%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#5fb6f5"/>
+      <stop offset="100%" stop-color="#1f7ad6"/>
+    </radialGradient>
+    <radialGradient id="glass" cx="34%" cy="26%" r="62%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity=".55"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity=".06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="240" fill="url(#deep)"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#06143f"
+          stroke-opacity=".55" stroke-width="10"/>
+
+  <!-- White ring: the part that makes a nazar read as a nazar. -->
+  <circle cx="256" cy="256" r="168" fill="#f4f8ff"/>
+  <circle cx="256" cy="256" r="112" fill="url(#mid)"/>
+
+  <!-- Pupil, nudged off-centre so the eye is looking rather than staring. -->
+  <circle cx="268" cy="243" r="58" fill="#0b1430"/>
+
+  <!-- Catchlight, the thing that makes an eye look alive. -->
+  <circle cx="243" cy="221" r="20" fill="#ffffff" fill-opacity=".92"/>
+  <circle cx="288" cy="276" r="8" fill="#ffffff" fill-opacity=".38"/>
+
+  <!-- Glass bead sheen over the whole thing. -->
+  <circle cx="256" cy="256" r="240" fill="url(#glass)"/>
+</svg>

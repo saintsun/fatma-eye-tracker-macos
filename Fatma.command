@@ -13,6 +13,14 @@ printf '\033]0;Fatma\007'
 echo "Fatma: deviceless eye tracker"
 echo
 
+# Give the launcher the nazar icon the first time, so Finder and the Dock
+# show it instead of a generic script document. Harmless to repeat.
+if [ -f assets/Fatma.icns ] && [ ! -f .icon-set ]; then
+  if command -v osascript >/dev/null 2>&1; then
+    .venv/bin/python set_icon.py >/dev/null 2>&1 && touch .icon-set || true
+  fi
+fi
+
 if [ ! -d .venv ] || [ ! -f face_landmarker.task ]; then
   echo "Ilk calistirma: kurulum yapiliyor, birkac dakika surebilir..."
   echo

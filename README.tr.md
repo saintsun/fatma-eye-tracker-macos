@@ -389,6 +389,17 @@ anında temizlediği için ESC ile geri çıkan kullanıcı elinde hiçbir şey
 kalmadan kalıyordu. Önceki harita artık kenara alınıp iptalde ve başarısız
 fit'te geri yükleniyor.
 
+### İkon
+
+Kaynak `assets/nazar.svg`; `make_icon.py` PNG setini üretiyor,
+`assets/Fatma.icns` dosyasını kuruyor ve panelin favicon olarak gömdüğü
+base64'ü yazıyor — böylece Dock ikonu ile tarayıcı sekmesi birbirinden
+ayrışamıyor.
+
+Nazar boncuğu, çünkü zaten bir göz, koruyucu bir sembol — birinin
+güvendiği bir araca yakışıyor — ve iç içe halkaları 16 piksele indiğinde
+de ayakta kalıyor; siluete dayanan her şey o boyutta lapaya dönüyor.
+
 ### Testler
 
 ```bash

@@ -390,6 +390,16 @@ the mapping immediately, so backing out with ESC left the user with nothing.
 The previous mapping is now set aside and restored on cancel, and on a failed
 fit.
 
+### The icon
+
+`assets/nazar.svg` is the source; `make_icon.py` renders the PNG set,
+builds `assets/Fatma.icns` and writes the base64 the panel embeds as its
+favicon, so the Dock icon and the browser tab cannot drift apart.
+
+A nazar boncuğu, because it is already an eye, it is a charm against harm
+— which suits a tool someone leans on — and its concentric rings survive
+being shrunk to 16 pixels, where anything with a silhouette turns to mush.
+
 ### Tests
 
 ```bash

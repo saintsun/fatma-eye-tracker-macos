@@ -240,3 +240,42 @@ class TestSettings:
 
         args = build_parser().parse_args(["--panel-port", "9100"])
         assert settings_from_args(args).panel_port == 9100
+
+
+class TestIconAndBrand:
+    def test_the_favicon_is_embedded_not_served(self):
+        """The page stays one self-contained document, so the tab icon
+        travels with it rather than needing a second request."""
+        from fatma.panel import FAVICON, render_page
+
+        page = render_page("en")
+        assert "__FAVICON__" not in page
+        if FAVICON:
+            assert "data:image/png;base64," in page
+            assert FAVICON[:16] in page
+
+    def test_a_missing_icon_does_not_break_the_page(self, monkeypatch):
+        """A tab with no icon is a cosmetic loss, not a reason to refuse to
+        serve the panel."""
+        import fatma.panel as panel
+
+        monkeypatch.setattr(panel, "FAVICON", "")
+        page = panel.render_page("en")
+        assert "__FAVICON__" not in page
+        assert "<title>Fatma" in page
+
+    def test_the_wordmark_returns_to_the_first_tab(self):
+        """A logo going home is the convention; the panel had no way back
+        to Control except the tab itself."""
+        from fatma.panel import PAGE_TEMPLATE
+
+        assert 'id="brand"' in PAGE_TEMPLATE
+        assert "#brand').onclick" in PAGE_TEMPLATE
+        assert "function showTab(" in PAGE_TEMPLATE
+
+    def test_the_icon_source_exists(self):
+        import pathlib
+
+        svg = pathlib.Path(__file__).resolve().parent.parent / "assets" / "nazar.svg"
+        assert svg.exists(), "assets/nazar.svg is the source make_icon.py renders"
+        assert "<svg" in svg.read_text()

@@ -20,13 +20,33 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .i18n import DEFAULT_LANGUAGE, LANGUAGES, TEXT
 
+
+def _load_favicon() -> str:
+    """Base64 PNG for the tab icon, produced by make_icon.py.
+
+    Embedded rather than served so the page stays one self-contained
+    document, and missing it is not a failure: a tab with no icon is a
+    cosmetic loss, not a reason to refuse to serve the panel.
+    """
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parent.parent / "assets" / "favicon.b64"
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return ""
+
+
+FAVICON = _load_favicon()
+
 DEFAULT_PORT = 8766
 #: Ports tried in order, so a second instance does not simply fail.
 PORT_RANGE = tuple(range(DEFAULT_PORT, DEFAULT_PORT + 8))
 
 PAGE_TEMPLATE = """<!doctype html><html lang="__LANG__"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fatma: Eye Tracker</title><style>
+<title>Fatma: Eye Tracker</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,__FAVICON__"><style>
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
 :root{
   --bg:#070910; --bg2:#0b0f1a;
@@ -54,7 +74,9 @@ button{min-width:0}
   background:var(--card);border:1px solid var(--line);border-radius:999px;
   padding:9px 10px 9px 16px;margin-bottom:12px;backdrop-filter:blur(14px);
   box-shadow:0 10px 30px rgba(0,0,0,.35)}
-.brand{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;
+  cursor:pointer;user-select:none}
+.brand:hover .nm{filter:drop-shadow(0 0 14px rgba(0,229,255,.75))}
 .brand .nm{font-weight:700;font-size:14px;letter-spacing:.13em;
   text-transform:uppercase;
   background:linear-gradient(92deg,var(--neon),var(--neon2));
@@ -184,7 +206,7 @@ button.power[disabled]{opacity:.5;cursor:wait;box-shadow:none}
 <div class="toasts" id="toasts"></div>
 
 <div class="nav">
-  <div class="brand"><span class="nm">Fatma</span><span class="ver" id="ver">—</span></div>
+  <div class="brand" id="brand" title="Kontrol"><span class="nm">Fatma</span><span class="ver" id="ver">—</span></div>
   <div class="tabs">
     <button data-t="kontrol" class="on" data-i18n="p.tab.control"></button>
     <button data-t="hassasiyet" data-i18n="p.tab.precision"></button>
@@ -343,10 +365,13 @@ async function act(action,value){
   }catch(e){ toast(T('p.toast.offline'),'err'); }
   finally{ busy=false; }
 }
-$$('.tabs button').forEach(b=>b.onclick=()=>{
+function showTab(b){
   $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
   $$('section[data-p]').forEach(s=>s.hidden = s.dataset.p!==b.dataset.t);
-});
+}
+$$('.tabs button').forEach(b=>b.onclick=()=>showTab(b));
+// The wordmark is the way back to the first tab, as a logo usually is.
+$('#brand').onclick=()=>showTab($$('.tabs button')[0]);
 
 function seg(host,items,current,action){
   const el=$(host); if(!el) return;
@@ -536,6 +561,7 @@ def render_page(lang: str = DEFAULT_LANGUAGE) -> str:
     # a dotted I.
     return (PAGE_TEMPLATE
             .replace("__STRINGS__", json.dumps(TEXT, ensure_ascii=False))
+            .replace("__FAVICON__", FAVICON)
             .replace("__LANG__", lang))
 
 
