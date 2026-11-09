@@ -255,8 +255,8 @@ isterseniz System Settings'ten elle silin.
 
 ## Henüz bitmedi
 
-Fatma çalışıyor ama bitmedi, ve beni en çok rahatsız eden eksik tam da adını
-aldığı yer.
+Fatma çalışıyor ama bitmedi, ve beni en çok rahatsız eden eksik tam da projenin
+en başta yazıldığı senaryo.
 
 Bugün her kontrol bir tuşa basmaktan geçiyor, kalibrasyonun istediği dokuz SPACE
 dahil. Yani yalnızca gözlerini oynatabilen biri Fatma'yı tek başına başlatamıyor,

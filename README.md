@@ -258,7 +258,7 @@ gone.
 ## Not finished yet
 
 Fatma works, but it is not done, and the gap that bothers me most is the one it
-was named for.
+was originally written for.
 
 Every control today is a key press, including the nine SPACE presses that
 calibration needs. So someone who can only move their eyes cannot start Fatma,
