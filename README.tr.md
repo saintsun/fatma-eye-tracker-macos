@@ -29,6 +29,12 @@ yetiyor. Her şey kendi makinende çalışıyor, hiçbir görüntü dışarı ç
 
 ---
 
+> **Durum: geliştirme aşamasında.** Fatma v0.3.0 ve hâlâ değişiyor. Pürüzler,
+> sürümler arasında kırıcı değişiklikler ve yarım kalmış özellikler olabilir.
+> Hata bildirimi ve katkı memnuniyetle karşılanır.
+
+---
+
 ## Kurulum: tek komut
 
 Terminal'i aç (⌘ + Boşluk → "Terminal" yaz → Enter), aşağıdaki satırı

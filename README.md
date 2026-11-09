@@ -29,6 +29,12 @@ already has. Everything runs on your machine, and no video ever leaves it.
 
 ---
 
+> **Status: early development.** Fatma is at v0.3.0 and still changing. Expect
+> rough edges, breaking changes between versions, and features that are only
+> half-finished. Bug reports and pull requests are welcome.
+
+---
+
 ## Install: one command
 
 Open Terminal (⌘ + Space → type "Terminal" → Enter), paste the line below and
