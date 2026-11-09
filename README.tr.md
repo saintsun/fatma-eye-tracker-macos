@@ -11,6 +11,7 @@ yetiyor. Her şey kendi makinende çalışıyor, hiçbir görüntü dışarı ç
 ![python](https://img.shields.io/badge/python-3.12-111?style=flat-square)
 ![cost](https://img.shields.io/badge/ücret-bedava-00c853?style=flat-square)
 ![license](https://img.shields.io/badge/lisans-MIT-111?style=flat-square)
+![languages](https://img.shields.io/badge/aray%C3%BCz-English%20%C2%B7%20T%C3%BCrk%C3%A7e-111?style=flat-square)
 
 *[English](README.md) · **Türkçe***
 
@@ -249,6 +250,37 @@ O klasörün dışına hiçbir şey kurulmadığı için hepsi bu kadar. Homebre
 Python'a dokunulmuyor çünkü başka programlar kullanıyor; macOS da bir
 uygulama gidince Kamera ve Erişilebilirlik kayıtlarını temizlemiyor,
 isterseniz System Settings'ten elle silin.
+
+---
+
+## Henüz bitmedi
+
+Fatma çalışıyor ama bitmedi, ve beni en çok rahatsız eden eksik tam da adını
+aldığı yer.
+
+Bugün her kontrol bir tuşa basmaktan geçiyor, kalibrasyonun istediği dokuz SPACE
+dahil. Yani yalnızca gözlerini oynatabilen biri Fatma'yı tek başına başlatamıyor,
+kalibre edemiyor, durduramıyor. Yalnız-bakışla kontrolün kodu `parked/` içinde
+zaten duruyor: bekleyerek seçme, eşleme kurulmadan önce kalibrasyon için bakış
+kararlılığı, ve tam ekran köşe menüsü. Kapsam hassasiyete kayınca park edildi,
+geri dönmeyi hak ediyor.
+
+Yardımın en çok fark yaratacağı yerler:
+
+- **Yalnız bakışla kullanım.** `GazeStability`'yi SPACE işleyicisinin yerine
+  kalibrasyon döngüsüne bağlamak ve köşe menüsünü geri getirmek.
+  `parked/README.md` nasıl olacağını anlatıyor.
+- **Doğruluk.** Bugün 50-150 piksel. Daha iyi baş-duruşu telafisi ya da daha
+  zengin bir kalibrasyon modeli, Fatma'nın gerçekten ulaşabildiği alanı büyütür.
+- **Diğer platformlar.** Yalnız macOS, çünkü olay yolu Quartz üzerinden gidiyor
+  ve uygulama o şekilde paketleniyor.
+- **Kalıcı kalibrasyon.** Tek kişiye, tek kameraya ve tek oturma pozisyonuna
+  bağlı; bunlardan biri değişince baştan yapılması gerekiyor.
+
+Hata bildirimi ve katkı memnuniyetle karşılanır, "bende çalışmadı" diyenler de
+dahil. Bir yıldız, bir hata kaydı ya da bir yama göründüğünden çok daha fazla işe
+yarıyor; projeyi parayla desteklemeyi tercih edersen bağlantılar yukarıda.
+Hangisi olursa olsun sevinirim.
 
 ---
 

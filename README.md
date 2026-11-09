@@ -11,6 +11,7 @@ already has. Everything runs on your machine, and no video ever leaves it.
 ![python](https://img.shields.io/badge/python-3.12-111?style=flat-square)
 ![cost](https://img.shields.io/badge/cost-free-00c853?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-111?style=flat-square)
+![languages](https://img.shields.io/badge/interface-English%20%C2%B7%20T%C3%BCrk%C3%A7e-111?style=flat-square)
 
 ***English** · [Türkçe](README.tr.md)*
 
@@ -251,6 +252,37 @@ Homebrew and Python are left alone because other programs use them, and
 macOS does not clear the Camera and Accessibility entries when an
 application goes — remove those by hand in System Settings if you want them
 gone.
+
+---
+
+## Not finished yet
+
+Fatma works, but it is not done, and the gap that bothers me most is the one it
+was named for.
+
+Every control today is a key press, including the nine SPACE presses that
+calibration needs. So someone who can only move their eyes cannot start Fatma,
+calibrate it, or stop it without another person in the room. The code for
+gaze-only control already exists in `parked/`: dwell selection, gaze stability
+for calibration before a mapping exists, and a full-screen corner menu. It was
+parked when the scope moved to precision, and it deserves to come back.
+
+Where help would make the most difference:
+
+- **Gaze-only operation.** Wire `GazeStability` into the calibration loop in
+  place of the SPACE handler and bring the corner menu back. `parked/README.md`
+  explains how.
+- **Accuracy.** 50-150 px today. Better head-pose compensation or a richer
+  calibration model would widen what Fatma can actually reach.
+- **Other platforms.** macOS only, because of the Quartz event path and the way
+  the app is bundled.
+- **Calibration that survives.** It is tied to one person, one camera and one
+  seating position, and has to be redone when any of those change.
+
+Issues and pull requests are welcome, including the ones that just say it does
+not work on your machine. A star, a bug report or a patch all help more than
+they look like they do, and if you would rather support the project with money,
+the links are further up. Either way I would be glad.
 
 ---
 
